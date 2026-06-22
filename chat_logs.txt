@@ -1,0 +1,43 @@
+SESSION STARTED: 2026-06-22 14:45:04
+==================================================
+User: Explain me Black Holes!
+ERROR WITH GEMINI: 2026-06-22 14:45:15
+503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+SESSION STARTED: 2026-06-22 14:47:47
+==================================================
+User: Explain me Black Holes like I am a 10 year old
+AI: Imagine a super-duper strong vacuum cleaner in space! Black holes are cosmic objects with gravity so incredibly powerful that they suck everything in, even light, if it gets too close. They are usually formed from the leftovers of very big stars that have run out of fuel and collapsed.
+User: Thanks A lot! exit
+SESSION STARTED: 2026-06-22 14:56:06
+==================================================
+User: Explain black Hole like I am 5
+AI: Imagine a black hole like a super-duper strong vacuum cleaner in space! It pulls everything nearby, even light, so strongly that nothing can escape once it gets too close. That's why we can't see them directly, because no light bounces off for us to see.
+User: Goodbye!
+SESSION STARTED: 2026-06-22 14:57:37
+==================================================
+User: Explain Black Holes like I am 5.
+AI: Imagine a super hungry invisible monster in space! It's so strong that it pulls everything, even light, right inside. That's why we can't see it and it looks like a black spot.
+SESSION STARTED: 2026-06-22 14:58:18
+==================================================
+User: Explain Black Holes to me like I am 5.
+AI: Imagine a super hungry cosmic vacuum cleaner in space! It's so strong, it eats up everything that comes too close, even light. Once things go in, they can't ever come back out!
+User: Goodbye!
+AI: Goodbye! Have a great day ahead!
+END OF SESSION: 2026-06-22 14:58:58
+==================================================
+SESSION STARTED: 2026-06-22 15:04:17
+==================================================
+User: Explain Black Holes to me like I am 5
+AI: Imagine a super hungry, invisible monster in space that eats everything around it, even light! Because it eats all the light, it looks completely dark and we can't see it. That's why we call it a "black hole"!
+User: Goodbye!
+AI: Goodbye! Have a great day ahead!
+END OF SESSION: 2026-06-22 15:04:55
+==================================================
+SESSION STARTED: 2026-06-22 15:06:41
+==================================================
+User: Explain Black Holes to me like I am 5.
+AI: Imagine a super-duper strong vacuum cleaner far away in space! It's so powerful that it sucks up everything around it, even light. That's why we can't see them directly, but they are very real!
+User: GoodBye!
+AI: Goodbye! Have a great day ahead!
+END OF SESSION: 2026-06-22 15:07:22
+==================================================
