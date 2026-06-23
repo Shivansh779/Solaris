@@ -3,7 +3,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
-model = "openrouter/nvidia-nemotron-3-super-120b-a12b"
+model = "nvidia/nemotron-3-super-120b-a12b:free"
 
 client_or = OpenAI(
     base_url="https://openrouter.ai/api/v1",
