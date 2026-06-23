@@ -63,6 +63,7 @@ if existing in ['y', 'yes', 'yeah', 'yup', 'affirmative']:
             preference = user_data[0]
             name = user_data[1]
             print(f"Welcome Back! {name}")
+            break
         else:
             choice = input(
                 "Press T to try again or N to create a new account: "
