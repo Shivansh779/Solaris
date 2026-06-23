@@ -56,19 +56,29 @@ print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " fo
 
 existing = input("Have You Used our AI before? (Y/N): ").strip().lower()
 if existing in ['y', 'yes', 'yeah', 'yup', 'affirmative']:
-    user_id = input("Enter User ID: ")
-    if helper_file.check_existing(user_id):
-        user_data = helper_file.get_preference(user_id)
-        preference = user_data[0]
-        name = user_data[1]
-    else:
-        print("User ID not found!\nCreate a new ID.")
-        name = input("Enter your name: ")
-        preference = input("Enter a description of how you want the AI to behave: ")
-        processed_pref = helper_ai.summarise_pref(preference)
-        user_id = helper_file.new_user(name, processed_pref)
-        preference = processed_pref
-        print(f"Your User ID is {user_id}")
+    while True:
+        user_id = input("Enter User ID: ")
+        if helper_file.check_existing(user_id):
+            user_data = helper_file.get_preference(user_id)
+            preference = user_data[0]
+            name = user_data[1]
+            print(f"Welcome Back! {name}")
+        else:
+            choice = input(
+                "Press T to try again or N to create a new account: "
+            ).strip().lower()
+
+            if choice == 'n':
+                print("User ID not found!\nCreate a new ID.")
+                name = input("Enter your name: ")
+                preference = input("Enter a description of how you want the AI to behave: ")
+                processed_pref = helper_ai.summarise_pref(preference)
+                user_id = helper_file.new_user(name, processed_pref)
+                preference = processed_pref
+                print(f"Your User ID is {user_id}")
+                break
+            elif choice == 't':
+                continue
 elif existing in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
