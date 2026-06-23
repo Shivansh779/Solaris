@@ -7,7 +7,7 @@ model = "openrouter/nvidia-nemotron-3-super-120b-a12b"
 
 client_or = OpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OOR_ASSIST_API_KEY"),
+    api_key=os.getenv("OR_ASSIST_API_KEY"),
 )
 
 def summarise_pref(user_preference):
