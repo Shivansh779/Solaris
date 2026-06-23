@@ -11,6 +11,12 @@ from playsound3 import playsound
 from datetime import datetime
 import ollama
 
+import helper_ai
+import helper_file
+
+# Create the table for the Database
+helper_file.create_table()
+
 history = []
 
 fs = 16000 # sample rate, (fps of audio)
@@ -47,6 +53,29 @@ if voice_text == 'v':
 
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
+
+existing = input("Have You Used our AI before? (Y/N): ").strip().lower()
+if existing in ['y', 'yes', 'yeah', 'yup', 'affirmative']:
+    user_id = input("Enter User ID: ")
+    if helper_file.check_existing(user_id):
+        user_data = helper_file.get_preference(user_id)
+        preference = user_data[0]
+        name = user_data[1]
+    else:
+        print("User ID not found!\nCreate a new ID.")
+        name = input("Enter your name: ")
+        preference = input("Enter a description of how you want the AI to behave: ")
+        processed_pref = helper_ai.summarise_pref(preference)
+        user_id = helper_file.new_user(name, processed_pref)
+        preference = processed_pref
+        print(f"Your User ID is {user_id}")
+elif existing in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
+    name = input("Enter your name: ")
+    preference = input("Enter a description of how you want the AI to behave: ")
+    processed_pref = helper_ai.summarise_pref(preference)
+    user_id = helper_file.new_user(name, processed_pref)
+    preference = processed_pref
+    print(f"Your User ID is {user_id}")
 
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -128,12 +157,19 @@ while True:
     question = transcribed_text.strip()
 
     # Add to current chat history
-    history.append(f"User: {question}")
+    history.append({
+        "role": "user",
+        "content": question
+    })
 
     # Add to chat_log
     with open("chat_logs.txt", "a") as f:
         f.write(f"User: {question}\n")
 
+    conversation_text = "\n".join(
+    f"{msg['role'].title()}: {msg['content']}"
+    for msg in history[-25:]
+    )
     prompt = f"""
     You are a voice assistant.
 
@@ -142,9 +178,13 @@ while True:
     2. Keep your responses concise and to the point.
     3. Give responses up to maximum 3 sentences.
     4. Try not to use * symbol.
+    5. Respond according to the preference given by the User.
+    
+    User Name: {name}
+    Preference: {preference}
 
     Conversation So Far:
-    {chr(10).join(history[-25:])}
+    {conversation_text}
 
     User's question: {question}
     """
@@ -184,7 +224,10 @@ while True:
             print("AI: " + response)
 
         # Append AI Response to History
-        history.append(f"AI: {response}")
+        history.append({
+            "role": "assistant",
+            "content": response
+        })
 
         # Add to Chat_Log
         with open("chat_logs.txt", "a") as f:
