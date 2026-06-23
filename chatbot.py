@@ -144,7 +144,7 @@ while True:
     4. Try not to use * symbol.
 
     Conversation So Far:
-    {chr(10).join(history[-10:])}
+    {chr(10).join(history[-25:])}
 
     User's question: {question}
     """
