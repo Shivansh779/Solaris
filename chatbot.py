@@ -113,7 +113,7 @@ def ask_openrouter(prompt, models):
         except Exception as e:
             print(f"{model} failed: {e}")
             with open("chat_logs.txt", "a") as f:
-                f.write(f"\nERROR WITH AN OPENROUTER MODEL: {current_time()}\n{e}\n")
+                f.write(f"\nERROR WITH AN OPENROUTER MODEL- {model}: {current_time()}\n{e}\n")
 
     print("All OpenRouter Models Failed, switching to Ollama")
     return ask_ollama(prompt)
