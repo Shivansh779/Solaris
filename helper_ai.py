@@ -10,6 +10,7 @@ client_or = OpenAI(
     api_key=os.getenv("OR_ASSIST_API_KEY"),
 )
 
+# Preference summariser
 def summarise_pref(user_preference):
 
     prompt = f"""
@@ -41,4 +42,42 @@ User message:
         ]
     )
 
+    return response.choices[0].message.content
+
+# Memory Extraction System
+def summarise_session (conv_history):
+    prompt = f"""
+You are a long-term memory extraction system.
+
+Extract only information that would help an AI assistant provide better future responses.
+
+Keep:
+- User goals
+- Ongoing projects
+- Interests
+- Skills being learned
+- Personal preferences
+- Important plans
+
+Discard:
+- Greetings
+- Casual conversation
+- Temporary requests
+- One-off questions
+- AI responses
+
+Output:
+- Short bullet points
+- One memory per line
+- No explanations
+
+Conversation:
+{conv_history}
+"""
+    response = client_or.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content" : prompt}
+        ]
+    )
     return response.choices[0].message.content

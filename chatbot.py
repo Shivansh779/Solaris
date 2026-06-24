@@ -12,12 +12,17 @@ from datetime import datetime
 import ollama
 
 import helper_ai
-import helper_file
+import history_db
+import preference_db
+from helper_ai import summarise_session
+from history_db import store_history
 
-# Create the table for the Database
-helper_file.create_table()
+# Create the tables for the Database
+preference_db.create_table()
+history_db.create_table()
 
-history = []
+conv_history = []
+session_history = []
 
 fs = 16000 # sample rate, (fps of audio)
 seconds=5
@@ -54,7 +59,7 @@ if voice_text == 'v':
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 
-for user in helper_file.check_existing():
+for user in preference_db.check_existing():
     print(f"{user[0]}: {user[1]}")
 
 existing = input(""
@@ -64,23 +69,30 @@ existing = input(""
 
 existing = existing.split(".")
 
+current_user_id = None
+
 if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
-    helper_file.new_user(name, processed_pref)
+    current_user_id = preference_db.new_user(name, processed_pref)
     preference = processed_pref
 elif len(existing) > 1 and existing[1] == "update":
     preference = input("Enter the new description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
-    helper_file.update_user_pref(int(existing[0]), processed_pref)
+    preference_db.update_user_pref(int(existing[0]), processed_pref)
     preference = processed_pref
+    current_user_id = int(existing[0])
+    data = preference_db.get_preference(current_user_id)
+    name = data[0][1]
+    preference = data[0][0]
 else:
     try:
         existing = int(existing[0])
-        data = helper_file.get_preference(existing)
+        data = preference_db.get_preference(existing)
         preference = data[0][0]
         name = data[0][1]
+        current_user_id = existing
     except ValueError:
         print("Invalid profile ID")
         exit()
@@ -164,9 +176,13 @@ while True:
     print("\nYou: " + transcribed_text)
     question = transcribed_text.strip()
 
-    # Add to current chat history
-    history.append({
+    # Add to current chat conv_history and session_history
+    conv_history.append({
         "role": "user",
+        "content": question
+    })
+    session_history.append({
+        "role" : "user",
         "content": question
     })
 
@@ -174,10 +190,19 @@ while True:
     with open("chat_logs.txt", "a") as f:
         f.write(f"User: {question}\n")
 
+    # For Prompt Injection
     conversation_text = "\n".join(
-    f"{msg['role'].title()}: {msg['content']}"
-    for msg in history[-25:]
+        f"{msg['role'].title()}: {msg['content']}"
+        for msg in conv_history[-25:]
     )
+
+    memories = history_db.access_history(current_user_id)
+
+    memory_text = "\n\n".join(
+        f"[{timestamp}]\n{summary}"
+        for summary, timestamp in memories
+    )
+    print(memory_text)
     prompt = f"""
     You are a voice assistant.
 
@@ -194,6 +219,9 @@ while True:
 
     Conversation So Far:
     {conversation_text}
+    
+    Past Sessions:
+    {memory_text}
 
     User's question: {question}
     """
@@ -207,6 +235,7 @@ while True:
     exit_commands = ['exit', 'quit', 'close', 'bye', 'goodbye']
 
     if  any(item in temp_question for item in exit_commands):
+        now = current_time()
         response = "Goodbye! Have a great day ahead!"
         if ai_voice_text == 'v':
             asyncio.run(main(response))
@@ -218,6 +247,8 @@ while True:
             f.write(f"AI: {response}\n")
             f.write(f"END OF SESSION: {current_time()}\n")
             f.write("="*50 + "\n")
+        processed_session_hist = summarise_session(session_history)
+        store_history(now, current_user_id, processed_session_hist)
         break
 
     print("\nAI is thinking...\n")
@@ -232,8 +263,12 @@ while True:
         else:
             print("AI: " + response)
 
-        # Append AI Response to History
-        history.append({
+        # Append AI Response to History and session_history
+        conv_history.append({
+            "role": "assistant",
+            "content": response
+        })
+        session_history.append({
             "role": "assistant",
             "content": response
         })

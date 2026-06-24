@@ -1,6 +1,6 @@
 import sqlite3
 
-DB_PATH = 'preferences.db'
+DB_PATH = 'database.db'
 
 def get_conn():
     return sqlite3.connect(DB_PATH)
@@ -57,8 +57,10 @@ def new_user (name, preference):
         """, (name, preference)
     )
     conn.commit()
+    user_id = cursor.lastrowid
     cursor.close()
     conn.close()
+    return user_id
 
 def update_user_pref (user_id, preference):
     conn = get_conn()
@@ -69,5 +71,17 @@ def update_user_pref (user_id, preference):
         """, (preference, user_id)
     )
     conn.commit()
+    cursor.close()
+    conn.close()
+
+def fetch_user_id (name):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+            SELECT user_id FROM user_pref WHERE name = ?;
+        """, (name,)
+    )
+    return cursor.fetchone()
     cursor.close()
     conn.close()
