@@ -86,7 +86,7 @@ def ask_ai(prompt, models=None):
     try:
         answer = ask_gemini(prompt)
     except Exception as e:
-        print("An Error occurred with Gemini, Switching to backup models!")
+        print("Please wait a few seconds...")
         with open("chat_logs.txt", "a") as f:
             f.write(f"ERROR WITH GEMINI: {current_time()}\n{e}\n")
         answer = ask_openrouter(prompt, models=models)
@@ -111,11 +111,11 @@ def ask_openrouter(prompt, models):
             )
             return response.choices[0].message.content
         except Exception as e:
-            print(f"{model} failed: {e}")
+            print(f"Please wait a few more seconds...")
             with open("chat_logs.txt", "a") as f:
                 f.write(f"\nERROR WITH AN OPENROUTER MODEL- {model}: {current_time()}\n{e}\n")
 
-    print("All OpenRouter Models Failed, switching to Ollama")
+    print("All AI Models Failed, switching to Ollama")
     return ask_ollama(prompt)
 
 def ask_ollama(prompt):
