@@ -43,7 +43,7 @@ def get_preference (user_id):
         """,
         (user_id,)
     )
-    data = cursor.fetchall()
+    data = cursor.fetchone()
     cursor.close()
     conn.close()
     return data
@@ -55,6 +55,18 @@ def new_user (name, preference):
         """
             INSERT INTO user_pref (name, prefers) VALUES(?, ?);
         """, (name, preference)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+def update_user_pref (user_id, preference):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+            UPDATE user_pref SET prefers = ? WHERE user_id = ?;
+        """, (preference, user_id)
     )
     conn.commit()
     cursor.close()

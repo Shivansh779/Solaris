@@ -58,18 +58,26 @@ for user in helper_file.check_existing():
     print(f"{user[0]}: {user[1]}")
 
 existing = input(""
-                 "Type the number of the profile to use, or Type N to create a new account: "
+                 "Type the number of the profile to use, or Type N to create a new account, or .update with the profile "
+                 "ID (ex- 1.update) to update preferences: "
                  ).strip().lower()
 
-if existing in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
+existing = existing.split(".")
+
+if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
     helper_file.new_user(name, processed_pref)
     preference = processed_pref
+elif len(existing) > 1 and existing[1] == "update":
+    preference = input("Enter the new description of how you want the AI to behave: ")
+    processed_pref = helper_ai.summarise_pref(preference)
+    helper_file.update_user_pref(int(existing[0]), processed_pref)
+    preference = processed_pref
 else:
     try:
-        existing = int(existing)
+        existing = int(existing[0])
         data = helper_file.get_preference(existing)
         preference = data[0][0]
         name = data[0][1]
