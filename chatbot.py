@@ -54,39 +54,28 @@ if voice_text == 'v':
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 
-existing = input("Have You Used our AI before? (Y/N): ").strip().lower()
-if existing in ['y', 'yes', 'yeah', 'yup', 'affirmative']:
-    while True:
-        user_id = input("Enter User ID: ")
-        if helper_file.check_existing(user_id):
-            user_data = helper_file.get_preference(user_id)
-            preference = user_data[0]
-            name = user_data[1]
-            print(f"Welcome Back! {name}")
-            break
-        else:
-            choice = input(
-                "Press T to try again or N to create a new account: "
-            ).strip().lower()
+for user in helper_file.check_existing():
+    print(f"{user[0]}: {user[1]}")
 
-            if choice == 'n':
-                print("User ID not found!\nCreate a new ID.")
-                name = input("Enter your name: ")
-                preference = input("Enter a description of how you want the AI to behave: ")
-                processed_pref = helper_ai.summarise_pref(preference)
-                user_id = helper_file.new_user(name, processed_pref)
-                preference = processed_pref
-                print(f"Your User ID is {user_id}")
-                break
-            elif choice == 't':
-                continue
-elif existing in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
+existing = input(""
+                 "Type the number of the profile to use, or Type N to create a new account: "
+                 ).strip().lower()
+
+if existing in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
-    user_id = helper_file.new_user(name, processed_pref)
+    helper_file.new_user(name, processed_pref)
     preference = processed_pref
-    print(f"Your User ID is {user_id}")
+else:
+    try:
+        existing = int(existing)
+        data = helper_file.get_preference(existing)
+        preference = data[0][0]
+        name = data[0][1]
+    except ValueError:
+        print("Invalid profile ID")
+        exit()
 
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -190,6 +179,7 @@ while True:
     3. Give responses up to maximum 3 sentences.
     4. Try not to use * symbol.
     5. Respond according to the preference given by the User.
+    6. Don't Greet the user at every response.
     
     User Name: {name}
     Preference: {preference}
