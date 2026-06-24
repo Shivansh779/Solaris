@@ -13,7 +13,7 @@ def create_table():
     cursor.execute(
         """
             CREATE TABLE IF NOT EXISTS user_pref (
-                user_id TEXT PRIMARY KEY,
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 prefers TEXT NOT NULL
             );
