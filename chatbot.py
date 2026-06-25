@@ -10,6 +10,7 @@ import edge_tts
 from playsound3 import playsound
 from datetime import datetime
 import ollama
+import time
 
 import helper_ai
 import history_db
@@ -93,9 +94,17 @@ else:
         preference = data[0][0]
         name = data[0][1]
         current_user_id = existing
-    except ValueError:
+    except Exception as e:
         print("Invalid profile ID")
         exit()
+
+def change_user_id(user_id):
+    global current_user_id, memories, name, preference
+    data = preference_db.get_preference(user_id)
+    memories = history_db.access_history(user_id)
+    name = data[0][1]
+    preference = data[0][0]
+    current_user_id = user_id
 
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -172,9 +181,28 @@ while True:
     elif voice_text == 't':
         transcribed_text = input("You: ")
 
+    print("Type .CHANGE to change profiles!")
+
     # Send to the AI
     print("\nYou: " + transcribed_text)
     question = transcribed_text.strip()
+
+    if ".CHANGE" in question:
+        temp_list = []
+        for user in preference_db.check_existing():
+            print(f"{user[0]}: {user[1]}")
+            temp_list.append(user[0])
+        print("Select the profile to switch to!")
+        changed_profile = int(input("Switch to profile: "))
+        if changed_profile not in temp_list:
+            print("Invalid Profile ID! Enter Profile ID from the given options.\n\n\n")
+            continue
+        change_user_id(changed_profile)
+        print("Changing Profile...")
+        time.sleep(1.0)
+        print("Profile Changed!")
+        print("=" * 50 + "\n")
+        continue
 
     # Add to current chat conv_history and session_history
     conv_history.append({
@@ -197,12 +225,11 @@ while True:
     )
 
     memories = history_db.access_history(current_user_id)
-
     memory_text = "\n\n".join(
         f"[{timestamp}]\n{summary}"
         for summary, timestamp in memories
     )
-    print(memory_text)
+
     prompt = f"""
     You are a voice assistant.
 
