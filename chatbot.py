@@ -57,7 +57,7 @@ voice_text = input("Choose input mode: Voice or Text (Press V for Voice, T for T
 print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for yourself.")
 
 if voice_text == 'v':
-    model = WhisperModel("base")
+    model = WhisperModel("small")
 
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
