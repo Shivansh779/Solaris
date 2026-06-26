@@ -131,3 +131,16 @@ def fetch_user_id (name):
     cursor.close()
     conn.close()
     return data
+
+def fetch_status (user_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+            SELECT is_active FROM user_data WHERE user_id = ?;
+        """, (user_id,)
+    )
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return data[0] if data else 1
