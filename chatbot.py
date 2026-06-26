@@ -11,6 +11,7 @@ from playsound3 import playsound
 from datetime import datetime
 import ollama
 import time
+import sys
 
 import helper_ai
 import history_db
@@ -79,6 +80,52 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     processed_pref = helper_ai.summarise_pref(preference)
     current_user_id = preference_db.new_user(name, processed_pref)
     preference = processed_pref
+
+# Private Profiles
+elif len(existing) < 1 and preference_db.fetch_privacy_setting(existing[0]) == 1:
+    password = preference_db.fetch_password(existing[0])
+    attempts = 3
+    while attempts > 0:
+        user_password = input("Enter your password: ")
+        if user_password == password:
+            print("Acces Granted!")
+            data = preference_db.get_preference(existing[0])
+            preference = data[0]
+            name = data[1]
+            break
+        else:
+            attempts -= 1
+            print("Invalid password Try Again!")
+    else:
+        print("Too many attempts failed!\nRestarting Application...")
+        sys.exit()
+
+elif len(existing) > 1 and existing[1] == "update" and preference_db.fetch_privacy_setting(existing[0]) == 1:
+    password = preference_db.fetch_password(existing[0])
+    attempts = 3
+    while attempts > 0:
+        user_password = input("Enter your password: ")
+        if user_password == password:
+            print("Acces Granted!")
+            print("Updating Private Profile!")
+            preference = input("Enter the new description of how you want the AI to behave: ")
+            processed_pref = helper_ai.summarise_pref(preference)
+            preference_db.update_user_pref(int(existing[0]), processed_pref)
+            preference = processed_pref
+            current_user_id = int(existing[0])
+            data = preference_db.get_preference(existing[0])
+            preference = data[0]
+            name = data[1]
+            current_user_id = int(existing[0])
+            break
+        else:
+            attempts -= 1
+            print("Invalid password Try Again!")
+    else:
+        print("Too many attempts failed!\nRestarting Application...")
+        sys.exit()
+
+# Public Profiles
 elif len(existing) > 1 and existing[1] == "update":
     preference = input("Enter the new description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
@@ -86,14 +133,14 @@ elif len(existing) > 1 and existing[1] == "update":
     preference = processed_pref
     current_user_id = int(existing[0])
     data = preference_db.get_preference(current_user_id)
-    name = data[0][1]
-    preference = data[0][0]
+    name = data[1]
+    preference = data[0]
 else:
     try:
         existing = int(existing[0])
         data = preference_db.get_preference(existing)
-        preference = data[0][0]
-        name = data[0][1]
+        preference = data[0]
+        name = data[1]
         current_user_id = existing
     except Exception as e:
         print("Invalid profile ID")
@@ -103,8 +150,8 @@ def change_user_id(user_id):
     global current_user_id, memories, name, preference
     data = preference_db.get_preference(user_id)
     memories = history_db.access_history(user_id)
-    name = data[0][1]
-    preference = data[0][0]
+    name = data[1]
+    preference = data[0]
     current_user_id = user_id
 
 def current_time():
