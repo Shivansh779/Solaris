@@ -76,13 +76,13 @@ def get_preference (user_id):
     conn.close()
     return data
 
-def new_user (name, preference):
+def new_user (name, preference, is_private):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
         """
-            INSERT INTO user_pref (name, prefers) VALUES(?, ?);
-        """, (name, preference)
+            INSERT INTO user_pref (name, prefers, is_private) VALUES(?, ?, ?);
+        """, (name, preference, is_private)
     )
     conn.commit()
     user_id = cursor.lastrowid

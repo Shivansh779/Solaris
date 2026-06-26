@@ -77,8 +77,15 @@ current_user_id = None
 if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
+    privacy_setting = input("Do you want it to be a Private Profile? (Y/N) ")
+    if privacy_setting == "Y"  or privacy_setting == "y":
+        is_private = 1
+        print("Your Profile is Private.")
+    else:
+        is_private = 0
+        print("Your Profile is Public")
     processed_pref = helper_ai.summarise_pref(preference)
-    current_user_id = preference_db.new_user(name, processed_pref)
+    current_user_id = preference_db.new_user(name, processed_pref, is_private)
     preference = processed_pref
 
 # Private Profiles
