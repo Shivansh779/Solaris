@@ -28,6 +28,36 @@ A terminal-based AI assistant built in Python featuring voice interaction, persi
 * Edge TTS
 * SoundDevice
 
+## Project Structure
+
+### main.py
+* Main chatbot logic
+
+### helper_ai.py
+* AI helper functions
+* Session summarization
+* Preference summarization
+
+### preference_db.py
+* User profile management
+
+### history_db.py
+* Persistent memory management
+
+### database.db
+* SQLite database
+
+## Installation
+
+1. Clone the repository.
+2. Install dependencies.
+3. Create a .env file containing:
+    * GEMINI_API_KEY
+    * OR_API_KEY
+    * OR_ASSIST_API_KEY
+4. Install Ollama (optional, used as local fallback).
+5. Run main.py.
+
 ## Current Status
 
 This project currently runs entirely in the terminal (CLI).
