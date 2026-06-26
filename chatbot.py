@@ -24,6 +24,7 @@ history_db.create_table()
 
 conv_history = []
 session_history = []
+memories = []
 
 fs = 16000 # sample rate, (fps of audio)
 seconds=5
