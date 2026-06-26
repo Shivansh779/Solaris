@@ -15,12 +15,12 @@ import sys
 
 import helper_ai
 import history_db
-import main_db as preference_db
+import main_db
 from helper_ai import summarise_session
 from history_db import store_history
 
 # Create the tables for the Database
-preference_db.create_table()
+main_db.create_table()
 history_db.create_table()
 
 conv_history = []
@@ -62,7 +62,7 @@ if voice_text == 'v':
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 
-for user in preference_db.check_existing():
+for user in main_db.check_existing():
     print(f"{user[0]}: {user[1]}")
 
 existing = input(""
@@ -81,23 +81,23 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
         print("Your Profile is Private.")
-        print(f"Your Profile Password: {preference_db.generate_numeric_password()}")
+        print(f"Your Profile Password: {main_db.generate_numeric_password()}")
     else:
         is_private = 0
         print("Your Profile is Public")
     processed_pref = helper_ai.summarise_pref(preference)
-    current_user_id = preference_db.new_user(name, processed_pref, is_private)
+    current_user_id = main_db.new_user(name, processed_pref, is_private)
     preference = processed_pref
 
 # Private Profiles
-elif len(existing) < 1 and preference_db.fetch_privacy_setting(existing[0]) == 1:
-    password = preference_db.fetch_password(existing[0])
+elif len(existing) < 1 and main_db.fetch_privacy_setting(existing[0]) == 1:
+    password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
         user_password = input("Enter your password: ")
         if user_password == password:
             print("Acces Granted!")
-            data = preference_db.get_preference(existing[0])
+            data = main_db.get_preference(existing[0])
             preference = data[0]
             name = data[1]
             break
@@ -108,8 +108,8 @@ elif len(existing) < 1 and preference_db.fetch_privacy_setting(existing[0]) == 1
         print("Too many attempts failed!\nRestarting Application...")
         sys.exit()
 
-elif len(existing) > 1 and existing[1] == "update" and preference_db.fetch_privacy_setting(existing[0]) == 1:
-    password = preference_db.fetch_password(existing[0])
+elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_setting(existing[0]) == 1:
+    password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
         user_password = input("Enter your password: ")
@@ -118,10 +118,10 @@ elif len(existing) > 1 and existing[1] == "update" and preference_db.fetch_priva
             print("Updating Private Profile!")
             preference = input("Enter the new description of how you want the AI to behave: ")
             processed_pref = helper_ai.summarise_pref(preference)
-            preference_db.update_user_pref(int(existing[0]), processed_pref)
+            main_db.update_user_pref(int(existing[0]), processed_pref)
             preference = processed_pref
             current_user_id = int(existing[0])
-            data = preference_db.get_preference(existing[0])
+            data = main_db.get_preference(existing[0])
             preference = data[0]
             name = data[1]
             current_user_id = int(existing[0])
@@ -137,16 +137,16 @@ elif len(existing) > 1 and existing[1] == "update" and preference_db.fetch_priva
 elif len(existing) > 1 and existing[1] == "update":
     preference = input("Enter the new description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
-    preference_db.update_user_pref(int(existing[0]), processed_pref)
+    main_db.update_user_pref(int(existing[0]), processed_pref)
     preference = processed_pref
     current_user_id = int(existing[0])
-    data = preference_db.get_preference(current_user_id)
+    data = main_db.get_preference(current_user_id)
     name = data[1]
     preference = data[0]
 else:
     try:
         existing = int(existing[0])
-        data = preference_db.get_preference(existing)
+        data = main_db.get_preference(existing)
         preference = data[0]
         name = data[1]
         current_user_id = existing
@@ -156,7 +156,7 @@ else:
 
 def change_user_id(user_id):
     global current_user_id, memories, name, preference
-    data = preference_db.get_preference(user_id)
+    data = main_db.get_preference(user_id)
     memories = history_db.access_history(user_id)
     name = data[1]
     preference = data[0]
@@ -250,7 +250,7 @@ while True:
 
     elif ".CHANGE" in question:
         temp_list = []
-        for user in preference_db.check_existing():
+        for user in main_db.check_existing():
             print(f"{user[0]}: {user[1]}")
             temp_list.append(user[0])
         print("Select the profile to switch to!")
@@ -258,7 +258,7 @@ while True:
         if changed_profile not in temp_list:
             print("Invalid Profile ID!\n\n\n")
             continue
-        elif preference_db.fetch_privacy_setting(changed_profile) == 1:
+        elif main_db.fetch_privacy_setting(changed_profile) == 1:
             print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
             continue
         change_user_id(changed_profile)
