@@ -15,7 +15,7 @@ import sys
 
 import helper_ai
 import history_db
-import preference_db
+import main_db as preference_db
 from helper_ai import summarise_session
 from history_db import store_history
 
@@ -81,6 +81,7 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
         print("Your Profile is Private.")
+        print(f"Your Profile Password: {preference_db.generate_numeric_password()}")
     else:
         is_private = 0
         print("Your Profile is Public")
@@ -255,7 +256,10 @@ while True:
         print("Select the profile to switch to!")
         changed_profile = int(input("Switch to profile: "))
         if changed_profile not in temp_list:
-            print("Invalid Profile ID! Enter Profile ID from the given options.\n\n\n")
+            print("Invalid Profile ID!\n\n\n")
+            continue
+        elif preference_db.fetch_privacy_setting(changed_profile) == 1:
+            print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
             continue
         change_user_id(changed_profile)
         print("Changing Profile...")

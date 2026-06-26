@@ -1,4 +1,6 @@
 import sqlite3
+import secrets
+import string
 
 DB_PATH = 'database.db'
 
@@ -10,7 +12,7 @@ def create_table():
     cursor = conn.cursor()
     cursor.execute(
         """
-            CREATE TABLE IF NOT EXISTS user_pref (
+            CREATE TABLE IF NOT EXISTS user_data (
                 user_id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 prefers TEXT NOT NULL,
@@ -23,12 +25,20 @@ def create_table():
     cursor.close()
     conn.close()
 
+def generate_numeric_password(length=8):
+    # string.digits provides the string '0123456789'
+    digits = string.digits
+
+    # Securely select random digits and join them together
+    password = ''.join(secrets.choice(digits) for _ in range(length))
+    return int(password)
+
 def fetch_privacy_setting (user_id):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT is_private FROM user_pref WHERE user_id =?;
+            SELECT is_private FROM user_data WHERE user_id =?;
         """, (user_id,)
     )
     data = cursor.fetchone()
@@ -41,7 +51,7 @@ def fetch_password(user_id):
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT password FROM user_pref WHERE user_id = ?;
+            SELECT password FROM user_data WHERE user_id = ?;
         """, (user_id,)
     )
     data = cursor.fetchone()
@@ -54,7 +64,7 @@ def check_existing ():
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT user_id, name FROM user_pref ORDER BY user_id ASC;
+            SELECT user_id, name FROM user_data ORDER BY user_id ASC;
         """
     )
     data = cursor.fetchall()
@@ -67,7 +77,7 @@ def get_preference (user_id):
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT prefers, name FROM user_pref WHERE user_id = ?;
+            SELECT prefers, name FROM user_data WHERE user_id = ?;
         """,
         (user_id,)
     )
@@ -79,11 +89,18 @@ def get_preference (user_id):
 def new_user (name, preference, is_private):
     conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute(
-        """
-            INSERT INTO user_pref (name, prefers, is_private) VALUES(?, ?, ?);
-        """, (name, preference, is_private)
-    )
+    if is_private == 1:
+        cursor.execute(
+            """
+                INSERT INTO user_data (name, prefers, is_private, password) VALUES(?, ?, ?, ?);
+            """, (name, preference, is_private, generate_numeric_password())
+        )
+    else:
+        cursor.execute(
+            """
+                INSERT INTO user_data (name, prefers) VALUES (?, ?);
+            """, (name, preference)
+        )
     conn.commit()
     user_id = cursor.lastrowid
     cursor.close()
@@ -95,7 +112,7 @@ def update_user_pref (user_id, preference):
     cursor = conn.cursor()
     cursor.execute(
         """
-            UPDATE user_pref SET prefers = ? WHERE user_id = ?;
+            UPDATE user_data SET prefers = ? WHERE user_id = ?;
         """, (preference, user_id)
     )
     conn.commit()
@@ -107,7 +124,7 @@ def fetch_user_id (name):
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT user_id FROM user_pref WHERE name = ?;
+            SELECT user_id FROM user_data WHERE name = ?;
         """, (name,)
     )
     data = cursor.fetchone()
