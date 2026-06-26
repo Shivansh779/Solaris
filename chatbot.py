@@ -187,7 +187,12 @@ while True:
     print("\nYou: " + transcribed_text)
     question = transcribed_text.strip()
 
-    if ".CHANGE" in question:
+    if ".HELP" in question:
+        print(".CHANGE - to Chaange Profiles\nprofile_number.update - To Update Preferences")
+        print("exit/goodbye/bye - To Exit")
+        continue
+
+    elif ".CHANGE" in question:
         temp_list = []
         for user in preference_db.check_existing():
             print(f"{user[0]}: {user[1]}")
