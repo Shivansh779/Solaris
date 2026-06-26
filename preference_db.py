@@ -82,6 +82,7 @@ def fetch_user_id (name):
             SELECT user_id FROM user_pref WHERE name = ?;
         """, (name,)
     )
-    return cursor.fetchone()
+    data = cursor.fetchone()
     cursor.close()
     conn.close()
+    return data
