@@ -65,7 +65,7 @@ for user in main_db.check_existing():
         print(f"{user[0]}: {user[1]} (Private & Inactive)")
     elif user[2] == 1:
         print(f"{user[0]}: {user[1]} (Private)")
-    elif user[4] == 1:
+    elif user[3] == 0:
         print(f"{user[0]}: {user[1]} (Inactive)")
     else:
         print(f"{user[0]}: {user[1]}")
@@ -77,8 +77,7 @@ Update Preferences of a Profile (Type ID.update), or
 Deactivate Profile (Type ID.deactivate), or
 Activate Profile (Type ID.activate), or
 Exit (type .exit)
-Enter your Choice: 
-"""
+Enter your Choice:  """
 ).strip().lower()
 
 existing = existing.split(".")
@@ -92,7 +91,7 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
         print("Your Profile is Private.")
-        print(f"Your Profile Password: {main_db.generate_numeric_password()}\nKindly Save your Password to access your"
+        print(f"Your Profile Password: {main_db.password}\nKindly Save your Password to access your"
               f"profile in future!")
     else:
         is_private = 0
@@ -184,11 +183,13 @@ Note:
 If you plan to continue using this profile regularly,
 consider making it Private instead. A private profile
 uses a short PIN, while an inactive profile requires a
-new Activation Code every time it is deactivated."""
+new Activation Code every time it is deactivated.
+
+Do you wish to deactiate the profile? (Y/N) """
     confirmation = input(message)
     if confirmation == "Y" or confirmation == "y":
         print("Deactivating Profile...")
-        activation_code = deactivate_user(user_id)
+        activation_code = main_db.deactivate_user(user_id)
         print("Profile Deactivated!")
         print(f"Your Activation Code: {activation_code}\nKindly Save it to later activate your profile.")
         print("Kindly restart the application!")
@@ -294,6 +295,7 @@ with open("chat_logs.txt", "a") as f:
     f.write("="*50 + "\n")
 
 print("Type exit, goodbye, bye to close the Application!")
+print("Type .CHANGE to change profiles!")
 while True:
     if voice_text == 'v':
         print("Recording...")
@@ -311,8 +313,6 @@ while True:
         transcribed_text = "".join(segment.text for segment in segments).strip()
     elif voice_text == 't':
         transcribed_text = input("You: ")
-
-    print("Type .CHANGE to change profiles!")
 
     # Send to the AI
     print("\nYou: " + transcribed_text)

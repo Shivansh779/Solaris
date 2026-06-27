@@ -57,6 +57,9 @@ def activate_user (user_id):
             UPDATE user_data SET is_active = 1, activation_code = NULL WHERE user_id = ?;
         """, (user_id,)
     )
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def fetch_activation_code (user_id):
     conn = get_conn()
@@ -69,6 +72,7 @@ def fetch_activation_code (user_id):
     data = cursor.fetchone()
     cursor.close()
     conn.close()
+    return data[0] if data else 0
 
 def generate_numeric_password(length=8):
     # string.digits provides the string '0123456789'
@@ -77,6 +81,8 @@ def generate_numeric_password(length=8):
     # Securely select random digits and join them together
     password = ''.join(secrets.choice(digits) for _ in range(length))
     return int(password)
+
+password = generate_numeric_password()
 
 def fetch_privacy_setting (user_id):
     conn = get_conn()
@@ -138,7 +144,7 @@ def new_user (name, preference, is_private):
         cursor.execute(
             """
                 INSERT INTO user_data (name, prefers, is_private, password) VALUES(?, ?, ?, ?);
-            """, (name, preference, is_private, generate_numeric_password())
+            """, (name, preference, is_private, password)
         )
     else:
         cursor.execute(

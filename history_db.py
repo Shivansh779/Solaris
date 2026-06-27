@@ -12,9 +12,9 @@ def create_table():
         CREATE TABLE IF NOT EXISTS history (
             Session_id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            summary TEXT NOT NULL,
+            summary TEXT,
             created_on TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES user_prefer (user_id)
+            FOREIGN KEY (user_id) REFERENCES user_data (user_id)
         );
     """)
     conn.commit()
