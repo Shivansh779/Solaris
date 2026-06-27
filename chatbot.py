@@ -16,8 +16,6 @@ import sys
 import helper_ai
 import history_db
 import main_db
-from helper_ai import summarise_session
-from history_db import store_history
 
 # Create the tables for the Database
 main_db.create_table()
@@ -63,12 +61,25 @@ ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T f
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 
 for user in main_db.check_existing():
-    print(f"{user[0]}: {user[1]}")
+    if user[2] == 1 and user[3] == 0:
+        print(f"{user[0]}: {user[1]} (Private & Inactive)")
+    elif user[2] == 1:
+        print(f"{user[0]}: {user[1]} (Private)")
+    elif user[4] == 1:
+        print(f"{user[0]}: {user[1]} (Inactive)")
+    else:
+        print(f"{user[0]}: {user[1]}")
 
-existing = input(""
-                 "Type the number of the profile to use, or Type N to create a new account, or .update with the profile "
-                 "ID (ex- 1.update) to update preferences: "
-                 ).strip().lower()
+existing = input("""
+Enter Number of Profile to use it, or 
+Create New Profile (Type N), or
+Update Preferences of a Profile (Type ID.update), or
+Deactivate Profile (Type ID.deactivate), or
+Activate Profile (Type ID.activate), or
+Exit (type .exit)
+Enter your Choice: 
+"""
+).strip().lower()
 
 existing = existing.split(".")
 
@@ -81,7 +92,8 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
         print("Your Profile is Private.")
-        print(f"Your Profile Password: {main_db.generate_numeric_password()}")
+        print(f"Your Profile Password: {main_db.generate_numeric_password()}\nKindly Save your Password to access your"
+              f"profile in future!")
     else:
         is_private = 0
         print("Your Profile is Public")
@@ -90,7 +102,8 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     preference = processed_pref
 
 # Private Profiles
-elif len(existing) < 1 and main_db.fetch_privacy_setting(existing[0]) == 1:
+elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
+      and main_db.fetch_status(existing[0]) == 1):
     password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
@@ -108,7 +121,8 @@ elif len(existing) < 1 and main_db.fetch_privacy_setting(existing[0]) == 1:
         print("Too many attempts failed!\nRestarting Application...")
         sys.exit()
 
-elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_setting(existing[0]) == 1:
+elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_setting(existing[0]) == 1
+      and main_db.fetch_status(existing[0]) == 1):
     password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
@@ -128,13 +142,13 @@ elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_set
             break
         else:
             attempts -= 1
-            print("Invalid password Try Again!")
+            print(f"Invalid password!\n\nAttempts Remaining: {attempts}")
     else:
         print("Too many attempts failed!\nRestarting Application...")
         sys.exit()
 
 # Public Profiles
-elif len(existing) > 1 and existing[1] == "update":
+elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(existing[0]) == 1:
     preference = input("Enter the new description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
     main_db.update_user_pref(int(existing[0]), processed_pref)
@@ -143,16 +157,76 @@ elif len(existing) > 1 and existing[1] == "update":
     data = main_db.get_preference(current_user_id)
     name = data[1]
     preference = data[0]
-else:
+elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
     try:
         existing = int(existing[0])
         data = main_db.get_preference(existing)
         preference = data[0]
         name = data[1]
         current_user_id = existing
-    except Exception as e:
+    except Etxception as e:
         print("Invalid profile ID")
-        exit()
+        exi()
+
+# Profile Deactivation
+elif len(existing) > 1 and existing[1] == "deactivate" and main_db.fetch_status(existing[0]) == 1:
+    user_id = int(existing[0])
+    message = """"==========================
+Deactivate Profile
+==========================
+This profile will become inactive.
+• It will no longer be usable until activated.
+• Your memories and preferences will be preserved.
+• A new Activation Code will be generated.
+• The previous Activation Code (if any) will become invalid.
+
+Note:
+If you plan to continue using this profile regularly,
+consider making it Private instead. A private profile
+uses a short PIN, while an inactive profile requires a
+new Activation Code every time it is deactivated."""
+    confirmation = input(message)
+    if confirmation == "Y" or confirmation == "y":
+        print("Deactivating Profile...")
+        activation_code = deactivate_user(user_id)
+        print("Profile Deactivated!")
+        print(f"Your Activation Code: {activation_code}\nKindly Save it to later activate your profile.")
+        print("Kindly restart the application!")
+        sys.exit()
+    else:
+        print("Your Profile has not been activated! Kindly Restart the application!")
+
+# Profile Activation
+elif len(existing) > 1 and existing[1] == "activate" and main_db.fetch_status(existing[0]) == 0:
+    user_id = int(existing[0])
+    print("This profile is inactive.\n\nEnter the activation code to continue.")
+    stored_code = main_db.fetch_activation_code(existing[0])
+    attempts = 3
+    while attempts > 0:
+        code = input("Enter (in XXXXX-XXXXX format): ")
+        if code == stored_code:
+            print("Activating Profile...")
+            main_db.activate_user(user_id)
+            print("Profile Activated!")
+            print("Kindly restart the application!")
+            sys.exit()
+        else:
+            attempts -= 1
+            print(f"Invalid Activation Code!\n\nAttempts Remaining: {attempts}")
+    else:
+        print("Too Many Attempts! Restart Application to try again!")
+        sys.exit()
+    sys.exit()
+
+# Exitting the Application
+elif len(existing) < 2 and existing[0] == "exit":
+    print("Goodbye! Have a Great Day!")
+    sys.exit()
+
+else:
+    print("Invalid Option Selected!")
+    print("Retry!")
+    sys.exit()
 
 def change_user_id(user_id):
     global current_user_id, memories, name, preference
@@ -219,6 +293,7 @@ with open("chat_logs.txt", "a") as f:
     f.write(f"SESSION STARTED: {current_time()}\n")
     f.write("="*50 + "\n")
 
+print("Type exit, goodbye, bye to close the Application!")
 while True:
     if voice_text == 'v':
         print("Recording...")
@@ -338,8 +413,8 @@ while True:
             f.write(f"AI: {response}\n")
             f.write(f"END OF SESSION: {current_time()}\n")
             f.write("="*50 + "\n")
-        processed_session_hist = summarise_session(session_history)
-        store_history(now, current_user_id, processed_session_hist)
+        processed_session_hist = helper_ai.summarise_session(session_history)
+        history_db.store_history(now, current_user_id, processed_session_hist)
         break
 
     print("\nAI is thinking...\n")

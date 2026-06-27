@@ -16,12 +16,57 @@ def create_table():
                 user_id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 prefers TEXT NOT NULL,
-                is_private INTEGER NOT NULL DEFAULT 0,   --0 Public, 1 = Private
-                password TEXT NULL
+                is_private INTEGER NOT NULL DEFAULT 0,   --0 = Public, 1 = Private
+                password TEXT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,    --0 = Inactive, 1 = Active
+                activation_code TEXT NULL
             );
         """
     )
     conn.commit()
+    cursor.close()
+    conn.close()
+
+def activation_code (grp_length=5):
+    digits = string.digits
+    pass_1 = ''.join(secrets.choice(digits) for _ in range(grp_length))
+    pass_2 = ''.join(secrets.choice(digits) for _ in range(grp_length))
+    code = pass_1 + '-' + pass_2
+    return code
+
+def deactivate_user (user_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    code = activation_code()
+    cursor.execute(
+        """
+            UPDATE user_data SET is_active = 0, activation_code = ? WHERE user_id = ?;
+        """, (code, user_id)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return code
+
+
+def activate_user (user_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+            UPDATE user_data SET is_active = 1, activation_code = NULL WHERE user_id = ?;
+        """, (user_id,)
+    )
+
+def fetch_activation_code (user_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+            SELECT activation_code FROM user_data WHERE user_id = ?;
+        """, (user_id,)
+    )
+    data = cursor.fetchone()
     cursor.close()
     conn.close()
 
@@ -64,7 +109,7 @@ def check_existing ():
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT user_id, name FROM user_data ORDER BY user_id ASC;
+            SELECT user_id, name, is_private, is_active FROM user_data ORDER BY user_id ASC;
         """
     )
     data = cursor.fetchall()
