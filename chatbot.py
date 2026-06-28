@@ -1,3 +1,5 @@
+from email.quoprimime import header_length
+
 from google import genai
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -297,6 +299,10 @@ with open("chat_logs.txt", "a") as f:
 print("Type exit, goodbye, bye to close the Application!")
 print("Type .CHANGE to change profiles!")
 while True:
+    if len(conv_history) > 24:
+        imp_conv_history.append(helper_ai.current_chat_summariser(conv_history))
+        conv_history = conv_history[-7:]
+
     if voice_text == 'v':
         print("Recording...")
         recording = sd.rec(int(seconds*fs), samplerate=fs, channels=1)
