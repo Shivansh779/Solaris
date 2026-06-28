@@ -17,9 +17,15 @@ import helper_ai
 import history_db
 import main_db
 
+# Logging Function Definition
+def system_log(log_level, level, message):
+    with open("System_Logs.txt", "a") as f:
+        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+
 # Create the tables for the Database
 main_db.create_table()
 history_db.create_table()
+system_log("SYSTEM", "INFO", "Application database tables initialized.")
 
 conv_history = []
 session_history = []
@@ -29,6 +35,7 @@ fs = 16000 # sample rate, (fps of audio)
 seconds=5
 
 load_dotenv()
+system_log("SYSTEM", "INFO", "Environment configuration loaded.")
 
 # Gemini Set-Up
 gemini_api_key = os.getenv("GEMINI_API_KEY")
@@ -56,9 +63,13 @@ print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for y
 
 if voice_text == 'v':
     model = WhisperModel("small")
+    system_log("SYSTEM", "INFO", "Voice input mode selected.")
+else:
+    system_log("SYSTEM", "INFO", "Text input mode selected.")
 
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
+system_log("SYSTEM", "INFO", "AI output mode selected.")
 
 for user in main_db.check_existing():
     if user[2] == 1 and user[3] == 0:
@@ -98,40 +109,49 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
         print("Your Profile is Public")
     processed_pref = helper_ai.summarise_pref(preference)
     current_user_id = main_db.new_user(name, processed_pref, is_private)
+    system_log("PROFILE", "INFO", f"Created new profile with user_id={current_user_id}.")
     preference = processed_pref
 
 # Private Profiles
 elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
       and main_db.fetch_status(existing[0]) == 1):
+    system_log("PROFILE", "INFO", f"Private profile login requested for user_id={existing[0]}.")
     password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
         user_password = input("Enter your password: ")
         if user_password == password:
             print("Acces Granted!")
+            system_log("PROFILE", "INFO", f"Private profile access granted for user_id={existing[0]}.")
             data = main_db.get_preference(existing[0])
             preference = data[0]
             name = data[1]
+            current_user_id = int(existing[0])
             break
         else:
             attempts -= 1
+            system_log("PROFILE", "WARNING", f"Invalid private profile password attempt for user_id={existing[0]}.")
             print("Invalid password Try Again!")
     else:
+        system_log("PROFILE", "ERROR", f"Private profile access failed after maximum attempts for user_id={existing[0]}.")
         print("Too many attempts failed!\nRestarting Application...")
         sys.exit()
 
 elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_setting(existing[0]) == 1
       and main_db.fetch_status(existing[0]) == 1):
+    system_log("PROFILE", "INFO", f"Private profile update requested for user_id={existing[0]}.")
     password = main_db.fetch_password(existing[0])
     attempts = 3
     while attempts > 0:
         user_password = input("Enter your password: ")
         if user_password == password:
             print("Acces Granted!")
+            system_log("PROFILE", "INFO", f"Private profile update access granted for user_id={existing[0]}.")
             print("Updating Private Profile!")
             preference = input("Enter the new description of how you want the AI to behave: ")
             processed_pref = helper_ai.summarise_pref(preference)
             main_db.update_user_pref(int(existing[0]), processed_pref)
+            system_log("PROFILE", "INFO", f"Private profile preferences updated for user_id={existing[0]}.")
             preference = processed_pref
             current_user_id = int(existing[0])
             data = main_db.get_preference(existing[0])
@@ -141,16 +161,20 @@ elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_se
             break
         else:
             attempts -= 1
+            system_log("PROFILE", "WARNING", f"Invalid password attempt during private profile update for user_id={existing[0]}.")
             print(f"Invalid password!\n\nAttempts Remaining: {attempts}")
     else:
+        system_log("PROFILE", "ERROR", f"Private profile update failed after maximum attempts for user_id={existing[0]}.")
         print("Too many attempts failed!\nRestarting Application...")
         sys.exit()
 
 # Public Profiles
 elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(existing[0]) == 1:
+    system_log("PROFILE", "INFO", f"Public profile update requested for user_id={existing[0]}.")
     preference = input("Enter the new description of how you want the AI to behave: ")
     processed_pref = helper_ai.summarise_pref(preference)
     main_db.update_user_pref(int(existing[0]), processed_pref)
+    system_log("PROFILE", "INFO", f"Public profile preferences updated for user_id={existing[0]}.")
     preference = processed_pref
     current_user_id = int(existing[0])
     data = main_db.get_preference(current_user_id)
@@ -163,13 +187,16 @@ elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
         preference = data[0]
         name = data[1]
         current_user_id = existing
-    except Etxception as e:
+        system_log("PROFILE", "INFO", f"Profile selected with user_id={current_user_id}.")
+    except Exception as e:
+        system_log("PROFILE", "ERROR", f"Invalid profile selection failed: {e}")
         print("Invalid profile ID")
-        exi()
+        sys.exit()
 
 # Profile Deactivation
 elif len(existing) > 1 and existing[1] == "deactivate" and main_db.fetch_status(existing[0]) == 1:
     user_id = int(existing[0])
+    system_log("PROFILE", "INFO", f"Profile deactivation requested for user_id={user_id}.")
     message = """"==========================
 Deactivate Profile
 ==========================
@@ -190,16 +217,19 @@ Do you wish to deactiate the profile? (Y/N) """
     if confirmation == "Y" or confirmation == "y":
         print("Deactivating Profile...")
         activation_code = main_db.deactivate_user(user_id)
+        system_log("PROFILE", "INFO", f"Profile deactivated for user_id={user_id}.")
         print("Profile Deactivated!")
         print(f"Your Activation Code: {activation_code}\nKindly Save it to later activate your profile.")
         print("Kindly restart the application!")
         sys.exit()
     else:
+        system_log("PROFILE", "INFO", f"Profile deactivation cancelled for user_id={user_id}.")
         print("Your Profile has not been activated! Kindly Restart the application!")
 
 # Profile Activation
 elif len(existing) > 1 and existing[1] == "activate" and main_db.fetch_status(existing[0]) == 0:
     user_id = int(existing[0])
+    system_log("PROFILE", "INFO", f"Profile activation requested for user_id={user_id}.")
     print("This profile is inactive.\n\nEnter the activation code to continue.")
     stored_code = main_db.fetch_activation_code(existing[0])
     attempts = 3
@@ -208,27 +238,34 @@ elif len(existing) > 1 and existing[1] == "activate" and main_db.fetch_status(ex
         if code == stored_code:
             print("Activating Profile...")
             main_db.activate_user(user_id)
+            system_log("PROFILE", "INFO", f"Profile activated for user_id={user_id}.")
             print("Profile Activated!")
             print("Kindly restart the application!")
             sys.exit()
         else:
             attempts -= 1
+            system_log("PROFILE", "WARNING", f"Invalid activation code attempt for user_id={user_id}.")
             print(f"Invalid Activation Code!\n\nAttempts Remaining: {attempts}")
     else:
+        system_log("PROFILE", "ERROR", f"Profile activation failed after maximum attempts for user_id={user_id}.")
         print("Too Many Attempts! Restart Application to try again!")
         sys.exit()
     sys.exit()
 
 # Exitting the Application
 elif len(existing) < 2 and existing[0] == "exit":
+    system_log("SYSTEM", "INFO", "Application exited from profile selection.")
     print("Goodbye! Have a Great Day!")
     sys.exit()
 
 else:
+    system_log("SYSTEM", "WARNING", "Invalid profile menu option selected.")
     print("Invalid Option Selected!")
     print("Retry!")
     sys.exit()
 
+
+# Important Function Definitions
 def change_user_id(user_id):
     global current_user_id, memories, name, preference
     data = main_db.get_preference(user_id)
@@ -236,6 +273,7 @@ def change_user_id(user_id):
     name = data[1]
     preference = data[0]
     current_user_id = user_id
+    system_log("PROFILE", "INFO", f"Changed active profile to user_id={user_id}.")
 
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -244,16 +282,17 @@ def ask_ai(prompt, models=None):
     if models is None:
         models = MODELS
     try:
+        system_log("AI", "INFO", "Sending request to Gemini model.")
         answer = ask_gemini(prompt)
     except Exception as e:
+        system_log("AI", "WARNING", f"Gemini request failed, falling back to OpenRouter: {e}")
         print("Please wait a few seconds...")
-        with open("chat_logs.txt", "a") as f:
-            f.write(f"ERROR WITH GEMINI: {current_time()}\n{e}\n")
         answer = ask_openrouter(prompt, models=models)
 
     return answer
 
 def ask_gemini(prompt, model=MODEL):
+    system_log("AI", "INFO", f"Using Gemini model: {model}.")
     response = client_gem.models.generate_content(
         model=model,
         contents=prompt
@@ -263,6 +302,7 @@ def ask_gemini(prompt, model=MODEL):
 def ask_openrouter(prompt, models):
     for model in models:
         try:
+            system_log("AI", "INFO", f"Using OpenRouter model: {model}.")
             response = client_or.chat.completions.create(
                 model=model,
                 messages=[
@@ -271,14 +311,15 @@ def ask_openrouter(prompt, models):
             )
             return response.choices[0].message.content
         except Exception as e:
+            system_log("AI", "WARNING", f"OpenRouter model failed: {model}. Error: {e}")
             print(f"Please wait a few more seconds...")
-            with open("chat_logs.txt", "a") as f:
-                f.write(f"\nERROR WITH AN OPENROUTER MODEL- {model}: {current_time()}\n{e}\n")
 
+    system_log("AI", "WARNING", "All OpenRouter models failed; switching to Ollama.")
     print("All AI Models Failed, switching to Ollama")
     return ask_ollama(prompt)
 
 def ask_ollama(prompt):
+    system_log("AI", "INFO", "Using Ollama model: qwen3:4b.")
     response = ollama.chat(
         model="qwen3:4b",
         messages=[
@@ -290,14 +331,14 @@ def ask_ollama(prompt):
         text = text.split("...done thinking.")[-1].strip()
     return text
 
-with open("chat_logs.txt", "a") as f:
-    f.write(f"SESSION STARTED: {current_time()}\n")
-    f.write("="*50 + "\n")
+system_log("SYSTEM", "INFO", "Chat session started.")
 
 print("Type exit, goodbye, bye to close the Application!")
 print("Type .CHANGE to change profiles!")
+imp_conv_history = []
 while True:
     if len(conv_history) > 24:
+        system_log("AI", "INFO", "Summarizing current conversation history.")
         imp_conv_history.append(helper_ai.current_chat_summariser(conv_history))
         conv_history = conv_history[-7:]
 
@@ -335,9 +376,11 @@ while True:
         print("Select the profile to switch to!")
         changed_profile = int(input("Switch to profile: "))
         if changed_profile not in temp_list:
+            system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
             print("Invalid Profile ID!\n\n\n")
             continue
         elif main_db.fetch_privacy_setting(changed_profile) == 1:
+            system_log("PROFILE", "WARNING", f"Blocked mid-session switch to private profile user_id={changed_profile}.")
             print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
             continue
         change_user_id(changed_profile)
@@ -357,10 +400,6 @@ while True:
         "content": question
     })
 
-    # Add to chat_log
-    with open("chat_logs.txt", "a") as f:
-        f.write(f"User: {question}\n")
-
     # For Prompt Injection
     conversation_text = "\n".join(
         f"{msg['role'].title()}: {msg['content']}"
@@ -368,6 +407,7 @@ while True:
     )
 
     memories = history_db.access_history(current_user_id)
+    system_log("DATABASE", "INFO", f"Retrieved conversation history for user_id={current_user_id}.")
     memory_text = "\n\n".join(
         f"[{timestamp}]\n{summary}"
         for summary, timestamp in memories
@@ -386,6 +426,9 @@ while True:
     
     User Name: {name}
     Preference: {preference}
+    
+    Important Facts from Current Session:
+    {imp_conv_history}
 
     Conversation So Far:
     {conversation_text}
@@ -407,18 +450,16 @@ while True:
     if  any(item in temp_question for item in exit_commands):
         now = current_time()
         response = "Goodbye! Have a great day ahead!"
+        system_log("SYSTEM", "INFO", f"Shutdown requested by user_id={current_user_id}.")
         if ai_voice_text == 'v':
             asyncio.run(main(response))
             playsound("output.wav")
             print("AI: " + response)
         else:
             print("AI: " + response)
-        with open(f"chat_logs.txt", "a") as f:
-            f.write(f"AI: {response}\n")
-            f.write(f"END OF SESSION: {current_time()}\n")
-            f.write("="*50 + "\n")
         processed_session_hist = helper_ai.summarise_session(session_history)
         history_db.store_history(now, current_user_id, processed_session_hist)
+        system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")
         break
 
     print("\nAI is thinking...\n")
@@ -443,11 +484,8 @@ while True:
             "content": response
         })
 
-        # Add to Chat_Log
-        with open("chat_logs.txt", "a") as f:
-            f.write(f"AI: {response}\n")
-
     except Exception as e:
+        system_log("SYSTEM", "ERROR", f"Unexpected chat loop error: {e}")
         if '503' in str(e):
             print("Server unavailable at the moment!")
         elif '429' in str(e):
@@ -455,5 +493,3 @@ while True:
         else:
             print(f"An error occurred: {e}")
 
-        with open("chat_logs.txt", "a") as f:
-            f.write(f"ERROR: {e}\n")
