@@ -2,8 +2,14 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import ollama
-from chatbot import system_log
-from chatbot import current_time
+from datetime import datetime
+
+def system_log(category, level, message):
+    with open("System_Logs.txt", "a") as f:
+        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 load_dotenv()
 
@@ -107,7 +113,7 @@ Conversation:
             ]
         )
         text = response.choices[0].message.content
-        system_log("AI", "INFO", "Long-term session summarization completed with OpenRouter.")
+        chatbot.system_log("AI", "INFO", "Long-term session summarization completed with OpenRouter.")
         return text
     except Exception as e:
         system_log("AI", "WARNING", f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")

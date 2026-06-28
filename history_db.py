@@ -1,11 +1,28 @@
 import sqlite3
-from chatbot import system_log
-from chatbot import current_time
+from datetime import datetime
+
+def system_log(category, level, message):
+    with open("System_Logs.txt", "a") as f:
+        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 DB_PATH = "database.db"
 
 def get_conn ():
     return sqlite3.connect(DB_PATH)
+
+def enable_foreign_key ():
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+    PRAGMA foreign_keys = ON;
+    """)
+    conn.commit()
+    system_log("DATABASE", "INFO", "Foreign key enabled.")
+    cursor.close()
+    conn.close()
 
 def create_table():
     conn = get_conn()
@@ -17,7 +34,6 @@ def create_table():
             summary TEXT,
             created_on TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES user_data (user_id)
-            PRAGMA foreign_keys = ON;
         );
     """)
     conn.commit()

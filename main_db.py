@@ -1,8 +1,14 @@
 import sqlite3
 import secrets
 import string
-from chatbot import system_log
-from chatbot import current_time
+from datetime import datetime
+
+def system_log(category, level, message):
+    with open("System_Logs.txt", "a") as f:
+        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 DB_PATH = 'database.db'
 

@@ -17,13 +17,18 @@ import helper_ai
 import history_db
 import main_db
 
+# Current Time Function
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 # Logging Function Definition
-def system_log(log_level, level, message):
+def system_log(category, level, message):
     with open("System_Logs.txt", "a") as f:
         f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
 
 # Create the tables for the Database
 main_db.create_table()
+history_db.enable_foreign_key()
 history_db.create_table()
 system_log("SYSTEM", "INFO", "Application database tables initialized.")
 
@@ -274,9 +279,6 @@ def change_user_id(user_id):
     preference = data[0]
     current_user_id = user_id
     system_log("PROFILE", "INFO", f"Changed active profile to user_id={user_id}.")
-
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def ask_ai(prompt, models=None):
     if models is None:
