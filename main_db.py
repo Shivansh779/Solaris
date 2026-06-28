@@ -1,6 +1,8 @@
 import sqlite3
 import secrets
 import string
+from chatbot import system_log
+from chatbot import current_time
 
 DB_PATH = 'database.db'
 
@@ -24,6 +26,7 @@ def create_table():
         """
     )
     conn.commit()
+    system_log("DATABASE", "INFO", "User profile table created or already exists.")
     cursor.close()
     conn.close()
 
@@ -44,6 +47,7 @@ def deactivate_user (user_id):
         """, (code, user_id)
     )
     conn.commit()
+    system_log("DATABASE", "INFO", f"Updated user profile as inactive for user_id={user_id}.")
     cursor.close()
     conn.close()
     return code
@@ -58,6 +62,7 @@ def activate_user (user_id):
         """, (user_id,)
     )
     conn.commit()
+    system_log("DATABASE", "INFO", f"Updated user profile as active for user_id={user_id}.")
     cursor.close()
     conn.close()
 
@@ -70,6 +75,7 @@ def fetch_activation_code (user_id):
         """, (user_id,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", f"Retrieved activation code status for user_id={user_id}.")
     cursor.close()
     conn.close()
     return data[0] if data else 0
@@ -80,7 +86,7 @@ def generate_numeric_password(length=8):
 
     # Securely select random digits and join them together
     password = ''.join(secrets.choice(digits) for _ in range(length))
-    return int(password)
+    return str(password)
 
 password = generate_numeric_password()
 
@@ -93,6 +99,7 @@ def fetch_privacy_setting (user_id):
         """, (user_id,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", f"Retrieved privacy setting for user_id={user_id}.")
     cursor.close()
     conn.close()
     return data[0] if data else 0
@@ -106,6 +113,7 @@ def fetch_password(user_id):
         """, (user_id,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", f"Retrieved password status for user_id={user_id}.")
     cursor.close()
     conn.close()
     return data[0] if data else 0
@@ -119,6 +127,7 @@ def check_existing ():
         """
     )
     data = cursor.fetchall()
+    system_log("DATABASE", "INFO", "Retrieved existing user profiles.")
     cursor.close()
     conn.close()
     return data
@@ -133,6 +142,7 @@ def get_preference (user_id):
         (user_id,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", f"Retrieved preferences for user_id={user_id}.")
     cursor.close()
     conn.close()
     return data
@@ -154,6 +164,7 @@ def new_user (name, preference, is_private):
         )
     conn.commit()
     user_id = cursor.lastrowid
+    system_log("DATABASE", "INFO", f"Inserted new user profile with user_id={user_id}.")
     cursor.close()
     conn.close()
     return user_id
@@ -167,6 +178,7 @@ def update_user_pref (user_id, preference):
         """, (preference, user_id)
     )
     conn.commit()
+    system_log("DATABASE", "INFO", f"Updated preferences for user_id={user_id}.")
     cursor.close()
     conn.close()
 
@@ -179,6 +191,7 @@ def fetch_user_id (name):
         """, (name,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", "Retrieved user_id by profile name.")
     cursor.close()
     conn.close()
     return data
@@ -192,6 +205,7 @@ def fetch_status (user_id):
         """, (user_id,)
     )
     data = cursor.fetchone()
+    system_log("DATABASE", "INFO", f"Retrieved active status for user_id={user_id}.")
     cursor.close()
     conn.close()
     return data[0] if data else 1

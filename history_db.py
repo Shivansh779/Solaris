@@ -1,4 +1,6 @@
 import sqlite3
+from chatbot import system_log
+from chatbot import current_time
 
 DB_PATH = "database.db"
 
@@ -15,9 +17,11 @@ def create_table():
             summary TEXT,
             created_on TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES user_data (user_id)
+            PRAGMA foreign_keys = ON;
         );
     """)
     conn.commit()
+    system_log("DATABASE", "INFO", "History table created or already exists.")
     cursor.close()
     conn.close()
 
@@ -29,6 +33,7 @@ def store_history (time, user_id, summary):
     """, (user_id, summary, time)
     )
     conn.commit()
+    system_log("DATABASE", "INFO", f"Inserted history summary for user_id={user_id}.")
     cursor.close()
     conn.close()
 
@@ -45,6 +50,7 @@ def access_history (user_id):
         """, (user_id,)
     )
     response = cursor.fetchall()
+    system_log("DATABASE", "INFO", f"Retrieved history summaries for user_id={user_id}.")
     cursor.close()
     conn.close()
     return response

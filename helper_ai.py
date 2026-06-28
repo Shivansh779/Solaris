@@ -2,7 +2,8 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import ollama
-
+from chatbot import system_log
+from chatbot import current_time
 
 load_dotenv()
 
@@ -20,6 +21,7 @@ ollama_model = "qwen3:4b"
 
 # Preference summariser
 def summarise_pref(user_preference):
+    system_log("AI", "INFO", "Starting preference summarization.")
 
     prompt = f"""
 You are a preference extraction system.
@@ -50,8 +52,10 @@ User message:
             ]
         )
         text = response.choices[0].message.content
+        system_log("AI", "INFO", "Preference summarization completed with OpenRouter.")
         return text
     except Exception as e:
+        system_log("AI", "WARNING", f"Preference summarization failed on OpenRouter; falling back to Ollama: {e}")
         response = ollama.chat(
             model=ollama_model,
             messages=[
@@ -61,11 +65,13 @@ User message:
         text = response['message']['content']
         if "...done thinking" in text:
             text = text.replace("...done thinking", "")
+        system_log("AI", "INFO", "Preference summarization completed with Ollama.")
         return text
 
 
 # Memory Extraction System
 def summarise_session (conv_history):
+    system_log("AI", "INFO", "Starting long-term session summarization.")
     prompt = f"""
 You are a long-term memory extraction system.
 Extract only information that would help an AI assistant provide better future responses.
@@ -101,8 +107,10 @@ Conversation:
             ]
         )
         text = response.choices[0].message.content
+        system_log("AI", "INFO", "Long-term session summarization completed with OpenRouter.")
         return text
     except Exception as e:
+        system_log("AI", "WARNING", f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")
         response = ollama.chat(
             model=ollama_model,
             messages=[
@@ -112,10 +120,12 @@ Conversation:
         text = response['message']['content']
         if "...done thinking" in text:
             text = text.replace("...done thinking", "")
+        system_log("AI", "INFO", "Long-term session summarization completed with Ollama.")
         return text
 
 
 def current_chat_summariser (conv_history):
+    system_log("AI", "INFO", "Starting current chat summarization.")
     prompt = f"""
 You are an AI whose only task is to create Important Current Session Memory.
 Given the conversation, extract only the important facts, decisions, preferences, ongoing tasks, and conclusions that should be remembered for the rest of the current session.
@@ -142,8 +152,10 @@ Conversation:
             ]
         )
         text = response.choices[0].message.content
+        system_log("AI", "INFO", "Current chat summarization completed with OpenRouter.")
         return text
     except Exception as e:
+        system_log("AI", "WARNING", f"Current chat summarization failed on OpenRouter; falling back to Ollama: {e}")
         response = ollama.chat(
             model=ollama_model,
             messages=[
@@ -153,4 +165,5 @@ Conversation:
         text = response['message']['content']
         if "...done thinking" in text:
             text = text.replace("...done thinking", "")
+        system_log("AI", "INFO", "Current chat summarization completed with Ollama.")
         return text
