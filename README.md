@@ -81,7 +81,7 @@ Chatbot
    OR_API_KEY="your_openrouter_api_key"
    OR_ASSIST_API_KEY="your_secondary_openrouter_api_key" # Used by the Helper AI
    
-4. Install Ollama + qwen3:4b (optional but recommended for offline fallback)
+4. Install Ollama + qwen3:4b
 5. Run the assistant:
    ```bash
    python3 chatbot.py
