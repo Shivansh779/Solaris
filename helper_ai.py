@@ -113,7 +113,7 @@ Conversation:
             ]
         )
         text = response.choices[0].message.content
-        chatbot.system_log("AI", "INFO", "Long-term session summarization completed with OpenRouter.")
+        system_log("AI", "INFO", "Long-term session summarization completed with OpenRouter.")
         return text
     except Exception as e:
         system_log("AI", "WARNING", f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")
