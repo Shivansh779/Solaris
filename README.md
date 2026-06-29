@@ -58,8 +58,7 @@ Chatbot
 - **.env**: API Keys (Created By the User)
 - **input.wav and output.wav**: Temporary Audio Files (auto-created)
 - **requirements.txt**: Required packages/dependencies to Install to run the program
-
-
+- **System_Logs.txt**: Used by developer while Debugging; Not Essential for the User (auto-created)
 
 ---
 
