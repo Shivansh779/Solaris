@@ -1,127 +1,215 @@
-# Personal Voice AI Assistant
+# Unified AI Assistant
 
-A **desktop voice assistant** with long-term memory, multi-user profiles (including private password-protected ones), and smart fallback between multiple AI models.
+Unified AI Assistant is a personal desktop assistant designed to combine natural conversation, persistent memory, profile-based personalization, and local system control in one workflow.
 
-Built by a Class 9 student during summer vacation as a Hobby Project.
+The purpose of the program is practical: let one assistant handle dialogue, remember user preferences across sessions, and execute desktop actions without forcing the user to switch between separate tools.
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+## What It Does
 
----
+This project supports four main areas:
 
-## ✨ Features
+1. Conversational assistance
+   - Answers questions using a multi-provider AI fallback chain.
+   - Keeps responses concise and adapted to the active user profile.
 
-### Core Capabilities
-- **Voice & Text Support** — Speak to it or type (you can mix both)
-- **Natural Indian English Voice** — Uses Edge-TTS (NeerjaNeural)
-- **Long-term Memory** — Remembers your projects, goals, and preferences across days and weeks
-- **Smart Session Summarization** — Automatically saves important memories after each chat
+2. Voice and text interaction
+   - Accepts either typed input or microphone input.
+   - Can respond through text or speech.
 
-### User Management (Netflix Style)
-- Multiple user profiles
-- **Public Profiles**
-- **Private Profiles** with numeric password protection
-- Mid-session profile switching using `.CHANGE`
-- Update preferences anytime using `ID.update`
+3. Profile-aware memory
+   - Supports multiple user profiles.
+   - Allows private profiles with password protection.
+   - Stores profile preferences and long-term session summaries in SQLite.
 
-### Reliability
-- Primary: Gemini
-- Backup: OpenRouter (multiple strong models)
-- Final Fallback: Local Ollama (works offline)
-- Graceful error handling
+4. Desktop command handling
+   - Executes common local actions such as volume, brightness, Wi-Fi, Bluetooth, browser, screen, and gesture commands.
+   - Routes explicit desktop requests directly to the matching module instead of sending them to the language model.
 
-### Commands
-- `.CHANGE` — Switch to another profile mid-conversation
-- `.HELP` — Show available commands
-- `bye` / `exit` / `goodbye` — End session and save memory
+## Primary Entry Point
 
----
+The main runtime is:
 
-## 🛠️ Tech Stack
+- `merged_assistant.py`
 
-- **Language**: Python
-- **AI Models**: Gemini, OpenRouter, Ollama
-- **Speech**: Faster-Whisper (STT), Edge-TTS (TTS)
-- **Database**: SQLite3 (with proper relational design)
-- **Others**: Sounddevice, playsound3, dotenv
+This is the integrated assistant that combines chat, memory, profiles, and desktop automation.
 
----
+## Core Capabilities
 
-## 📁 Project Structure
-Chatbot
+### Assistant Behavior
 
-- **chatbot.py**: Main chatbot file
-- **helper_ai.py**: AI summarization (Preferences and Memories)
-- **main_db.py**: User Profile + Privacy Logic and Preference Extraction
-- **history.db**: Long-Term Memory 
-- **database.db**: SQLite-based Database (auto-created)
-- **.env**: API Keys (Created By the User)
-- **input.wav and output.wav**: Temporary Audio Files (auto-created)
-- **requirements.txt**: Required packages/dependencies to Install to run the program
-- **System_Logs.txt**: Used by developer while Debugging; Not Essential for the User (auto-created)
+- Gemini as the first chat provider
+- OpenRouter as the fallback provider
+- Ollama as the local offline fallback
+- Preference summarization for each profile
+- Session summarization for long-term memory
 
----
+### Interaction Modes
 
-## 🚀 Installation & Setup
+- Text input
+- Voice input using Faster-Whisper
+- Text output
+- Voice output using Edge-TTS
 
-1. Clone the repository:
-   ```bash
-   git clone <your-repo-url>
-   cd chatbot
+### Profile Management
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
+- Create new profiles
+- Load existing profiles
+- Update preferences
+- Deactivate and reactivate profiles
+- Protect private profiles with a numeric password
 
-3. Set up API keys in .env file:
+### Desktop Automation
 
-   Kindly write the following in your .env file; (ignore the comments)
-   ```bash
-   GEMINI_API_KEY="your_api_key"
-   OR_API_KEY="your_openrouter_api_key"
-   OR_ASSIST_API_KEY="your_secondary_openrouter_api_key" # Used by the Helper AI
-   
-4. Install Ollama + qwen3:4b
-5. Run the assistant:
-   ```bash
-   python3 chatbot.py
-   
-   OR
-   
-   python chatbot.py
-   
----
+Supported command areas include:
 
-## 📝 How to Use
-1. Initiate ollama by running:
-      ```bash
-   ollama run qwen3:4b
-2. Run the program
-3. Choose Voice/Text mode
-4. Select or create a profile
-5. Start chatting!
-6. Type .CHANGE anytime to switch profiles
-7. Say "bye" to end the session
+- Volume control
+- Brightness control
+- Wi-Fi control
+- Bluetooth control
+- Browser opening and search
+- Screen text actions
+- Keyboard input helpers
+- Gesture control
+- Instagram messaging via the browser automation module
 
----
-## 🎯 What Makes This Special
-This isn't just another ChatGPT wrapper.
-I designed and built:
+## Repository Layout
 
-- A full user system with public + private profiles
-- Hybrid short-term + long-term memory architecture
-- AI-powered preference summarization
-- Resilient multi-AI fallback system
-- Clean modular architecture
+- `merged_assistant.py` - integrated assistant and command router
+- `helper_ai.py` - preference and memory summarization
+- `main_db.py` - profile storage, privacy, activation, and preference management
+- `history_db.py` - long-term memory storage
+- `database.db` - SQLite database created at runtime
+- `System_Logs.txt` - runtime log file
+- `drive-download-20260630T102541Z-3-001/` - desktop automation modules
+- `requirements.txt` - Python dependencies
+- `chatbot.py`, `index.py`, `test.py` - earlier or auxiliary scripts kept in the repository
 
-All while learning SQL, system design, and proper code organization.
+The desktop automation bundle contains modules for:
 
----
-## Future Improvements (TODO)
-- GUI interface (Tkinter / CustomTkinter)
-- Vector embeddings for smarter memory retrieval
-- Voice wake word ("Hey Assistant")
-- Better error recovery
-- Export chat history
+- `volume_control.py`
+- `brightness_control.py`
+- `wifi_bluetooth.py`
+- `browser_automation.py`
+- `screen_vision.py`
+- `gesture_control.py`
 
-### Made with curiosity and lots of debugging! 🥀🚀
+## Requirements
+
+- Python 3.11 or later is recommended
+- SQLite support
+- Microphone access for voice input
+- Speaker or audio output for voice responses
+- Optional: Ollama for local fallback execution
+- Optional: Gemini API key
+- Optional: OpenRouter API keys
+
+## Installation
+
+```bash
+git clone <your-repository-url>
+cd AI
+pip install -r requirements.txt
+```
+
+## Configuration
+
+Create a `.env` file in the project root with the required API keys:
+
+```bash
+GEMINI_API_KEY="your_gemini_api_key"
+OR_API_KEY="your_openrouter_api_key"
+OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
+```
+
+Notes:
+
+- `GEMINI_API_KEY` is used for primary chat responses.
+- `OR_API_KEY` is used for OpenRouter chat fallback.
+- `OR_ASSIST_API_KEY` is used by the helper AI that summarizes preferences and session memory.
+- If the remote providers are unavailable, the assistant can fall back to Ollama.
+
+## Running The Assistant
+
+```bash
+python merged_assistant.py
+```
+
+During startup, the assistant will:
+
+1. Initialize the database tables
+2. Ask for input mode
+3. Ask for output mode
+4. Present available profiles
+5. Start the session
+
+## Common Commands
+
+### Session and Profile Commands
+
+- `.HELP` - show built-in commands
+- `.CHANGE` - switch public profiles during a session
+- `bye`, `exit`, `goodbye`, `quit`, `close` - end the session and save memory
+
+### Desktop Commands
+
+- `set volume 50`
+- `volume up 10`
+- `brightness down 15`
+- `turn on wifi`
+- `turn off bluetooth`
+- `open gmail`
+- `open youtube lo-fi music`
+- `open example.com`
+- `close chrome`
+- `click Submit`
+- `find text Settings`
+- `press enter`
+- `type hello world`
+- `start gesture control`
+- `stop gesture control`
+- `gesture status`
+
+### Browser and Search Examples
+
+- `open youtube in chrome`
+- `open gmail in safari`
+- `google python decorators`
+- `search google for best prompt patterns`
+
+## Data And Persistence
+
+The assistant persists:
+
+- Profile definitions
+- Privacy and activation state
+- Profile preferences
+- Session summaries for long-term memory
+- Runtime logs
+
+Generated artifacts such as `input.wav`, `output.wav`, and `System_Logs.txt` are runtime files and can be regenerated.
+
+## Design Notes
+
+This project is built around a simple rule:
+
+- If the request is a direct desktop action, handle it locally.
+- If the request is conversational, route it through the AI providers.
+- If the conversation matters for future use, summarize and store it.
+
+That keeps the assistant responsive while still preserving context across sessions.
+
+## Platform Notes
+
+- Voice features require working audio hardware.
+- Some desktop control features are platform dependent.
+- Browser automation and gesture control may require extra OS permissions.
+- Ollama must be installed and running locally if you want offline fallback behavior.
+
+## Status
+
+This repository is a functional personal assistant project with an emphasis on:
+
+- personal productivity
+- profile-based memory
+- local desktop control
+- model fallback resilience
