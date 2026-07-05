@@ -3,10 +3,12 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import sounddevice as sd
+import soundfile as sf
 from scipy.io.wavfile import write
 from faster_whisper import WhisperModel
 import asyncio
 import edge_tts
+from kittentts import KittenTTS
 from playsound3 import playsound
 from datetime import datetime
 import ollama
@@ -58,16 +60,20 @@ client_or = OpenAI(
     api_key=openrouter_api_key,
 )
 
+# EdgeTTS
 async def main(response):
     text = response if isinstance(response, str) else response.text
     communicate = edge_tts.Communicate(text, "en-IN-NeerjaNeural")
     await communicate.save("output.wav")
 
+# KittenTTS
+kitten_model = None
+
 voice_text = input("Choose input mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for yourself.")
 
 if voice_text == 'v':
-    model = WhisperModel("small")
+    whisper_model = WhisperModel("small")
     system_log("SYSTEM", "INFO", "Voice input mode selected.")
 else:
     system_log("SYSTEM", "INFO", "Text input mode selected.")
@@ -75,6 +81,11 @@ else:
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 system_log("SYSTEM", "INFO", "AI output mode selected.")
+print("Options for Text-to-Speech Model:\n1. EdgeTTS (Requires Internet, Indian Accent)\n2. KittenTTS (Offline, British Accent)")
+pref = int(input("Enter which Text-to-Speech Model you want to use: "))
+if pref > 2 or pref < 1:
+    print("Invalid choice. Restart Program!")
+    sys.exit(0)
 
 for user in main_db.check_existing():
     if user[2] == 1 and user[3] == 0:
@@ -91,7 +102,7 @@ Enter Number of Profile to use it, or
 Create New Profile (Type N), or
 Update Preferences of a Profile (Type ID.update), or
 Deactivate Profile (Type ID.deactivate), or
-Activate Profile (Type ID.activate), or
+Activate Profile (Type ID.activate), or,
 Exit (type .exit)
 Enter your Choice:  """
 ).strip().lower()
@@ -208,7 +219,7 @@ Deactivate Profile
 This profile will become inactive.
 • It will no longer be usable until activated.
 • Your memories and preferences will be preserved.
-• A new Activation Code will be generated.
+• An unique Activation Code will be generated, every time the profile is deactivated.
 • The previous Activation Code (if any) will become invalid.
 
 Note:
@@ -271,6 +282,28 @@ else:
 
 
 # Important Function Definitions
+def ai_voice_manager(pref, response):
+    if pref == 1:
+        try:
+            asyncio.run(main(response))
+            system_log("SYSTEM", "INFO", "EdgeTTS selected.")
+        except Exception as e:
+            system_log("SYSTEM", "ERROR", f"Error in EdgeTTS. {e}\nSwitched to KittenTTS!")
+            kitten_tts(response)
+    elif pref == 2:
+        kitten_tts(response)
+        system_log("SYSTEM", "INFO", "KittenTTS selected.")
+
+def kitten_tts(kitten_model, response):
+    if kitten_model is None:
+        kitten_model = "KittenML/kitten-tts-mini-0.8"
+    audio = kitten_model.generate(
+    text=response,
+    voice="Jasper",
+    clean_text=True
+)
+    sf.write("output.wav", audio, 24000)
+
 def change_user_id(user_id):
     global current_user_id, memories, name, preference
     data = main_db.get_preference(user_id)
@@ -335,14 +368,13 @@ def ask_ollama(prompt):
 
 system_log("SYSTEM", "INFO", "Chat session started.")
 
-print("Type exit, goodbye, bye to close the Application!")
-print("Type .CHANGE to change profiles!")
+print("Type .HELP to see list of commands!")
 imp_conv_history = []
 while True:
     if len(conv_history) > 24:
-        system_log("AI", "INFO", "Summarizing current conversation history.")
         imp_conv_history.append(helper_ai.current_chat_summariser(conv_history))
         conv_history = conv_history[-7:]
+        system_log("AI", "INFO", f"Current Session Summarised.\nImportant Memories stored: {len(imp_conv_history)}")
 
     if voice_text == 'v':
         print("Recording...")
@@ -353,7 +385,7 @@ while True:
         print("Transcribing...")
         write("input.wav", fs, recording)
 
-        segments, info = model.transcribe("input.wav")
+        segments, info = whisper_model.transcribe("input.wav")
 
         transcribed_text = ""
 
@@ -368,6 +400,7 @@ while True:
     if ".HELP" in question:
         print(".CHANGE - to Chaange Profiles\nprofile_number.update - To Update Preferences")
         print("exit/goodbye/bye - To Exit")
+        print(".VOICE - To Change the Text-To-Speech model")
         continue
 
     elif ".CHANGE" in question:
@@ -390,6 +423,18 @@ while True:
         time.sleep(1.0)
         print("Profile Changed!")
         print("=" * 50 + "\n")
+        continue
+
+    elif ".VOICE" in question:
+        print("1. EdgeTTS (Requires Internet, Indian Accent)\n2.KittenTTS (Offline, British Accent)")
+        pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
+        if pref > 2 or pref < 1:
+            print("Invalid Choice!")
+        else:
+            if pref == 1:
+                system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: EdgeTTs")
+            else:
+                system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: KittenTTS")
         continue
 
     # Add to current chat conv_history and session_history
@@ -415,31 +460,7 @@ while True:
         for summary, timestamp in memories
     )
 
-    prompt = f"""
-    You are a voice assistant.
-
-    Follow these rules:
-    1. Always respond in a friendly and helpful manner.
-    2. Keep your responses concise and to the point.
-    3. Give responses up to maximum 3 sentences.
-    4. Try not to use * symbol.
-    5. Respond according to the preference given by the User.
-    6. Don't Greet the user at every response.
-    
-    User Name: {name}
-    Preference: {preference}
-    
-    Important Facts from Current Session:
-    {imp_conv_history}
-
-    Conversation So Far:
-    {conversation_text}
-    
-    Past Sessions:
-    {memory_text}
-
-    User's question: {question}
-    """
+    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question)
 
     if not question:
         print("No speech detected.")
@@ -454,7 +475,7 @@ while True:
         response = "Goodbye! Have a great day ahead!"
         system_log("SYSTEM", "INFO", f"Shutdown requested by user_id={current_user_id}.")
         if ai_voice_text == 'v':
-            asyncio.run(main(response))
+            ai_voice_manager(pref, response)
             playsound("output.wav")
             print("AI: " + response)
         else:
@@ -470,7 +491,7 @@ while True:
         response = ask_ai(prompt)
 
         if ai_voice_text == 'v':
-            asyncio.run(main(response))
+            ai_voice_manager(pref, response)
             playsound("output.wav")
             print("AI: " + response)
         else:

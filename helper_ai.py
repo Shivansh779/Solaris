@@ -24,6 +24,34 @@ client_or = OpenAI(
 # If Network is down, or Rate Limits; Ollama
 ollama_model = "qwen3:4b"
 
+def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question):
+    prompt = f"""
+    You are a voice assistant.
+
+    Follow these rules:
+    1. Always respond in a friendly and helpful manner.
+    2. Keep your responses concise and to the point.
+    3. Give responses up to maximum 3 sentences.
+    4. Try not to use * symbol.
+    5. Respond according to the preference given by the User.
+    6. Don't Greet the user at every response.
+    
+    User Name: {name}
+    Preference: {preference}
+    
+    Important Facts from Current Session:
+    {imp_conv_history}
+
+    Conversation So Far:
+    {conversation_text}
+    
+    Past Sessions:
+    {memory_text}
+
+    User's question: {question}
+"""
+    return prompt
+
 
 # Preference summariser
 def summarise_pref(user_preference):
