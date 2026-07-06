@@ -44,13 +44,13 @@ Solaris is designed to maintain personalized conversations across sessions by co
 
 ---
 ## <u> Architecture </u>
-![UX Flow](assets/UX_Flow.png)
+![UX Flow](UX_Flow.png)
 
-![Program Flow](assets/Program_flow.png)
+![Program Flow](Program_flow.png)
 
-![LLM_fallback](assets/LLM_fallback.png)
+![LLM_fallback](LLM_fallback.png)
 
-![Memory and Preference](assets/memory.png)
+![Memory and Preference](memory.png)
 
 ---
 
