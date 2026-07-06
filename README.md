@@ -160,8 +160,9 @@ OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
 ## <u>Running the Assistant ▶️</u>
 
 Start the standard assistant:
-
+```bash
 python chatbot.py
+```
 
 The assistant will:
 
