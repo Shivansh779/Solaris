@@ -1,0 +1,32 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# Environment variables
+.env
+# Database
+*.db
+# Logs
+System_Logs.txt
+chat_logs.txt
+*.log
+# Audio
+*.wav
+# Test files
+test.py
+test_input.wav
+index.py
+
+# Misc
+drive-download-*/
+merged_assistant.py
