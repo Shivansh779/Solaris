@@ -1,119 +1,145 @@
-# Unified AI Assistant
+# <u>Solaris – Personal AI Assistant 🤖</u>
 
-Unified AI Assistant is a personal desktop assistant designed to combine natural conversation, persistent memory, profile-based personalization, and local system control in one workflow.
 
-The purpose of the program is practical: let one assistant handle dialogue, remember user preferences across sessions, and execute desktop actions without forcing the user to switch between separate tools.
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
+![Gemini](https://img.shields.io/badge/LLM-Gemini-4285F4)
+![OpenRouter](https://img.shields.io/badge/Fallback-OpenRouter-orange)
+![Ollama](https://img.shields.io/badge/Offline-Ollama-black)
+![Voice](https://img.shields.io/badge/Voice-Supported-success)
+![Memory](https://img.shields.io/badge/Memory-Persistent-blueviolet)
+![Status](https://img.shields.io/badge/Status-Active%20Development-blue)
 
-## What It Does
 
-This project supports four main areas:
+A local, profile-aware AI assistant with persistent memory, multiple LLM fallbacks, voice support, and SQLite-backed long-term context.
 
-1. Conversational assistance
-   - Answers questions using a multi-provider AI fallback chain.
-   - Keeps responses concise and adapted to the active user profile.
+Solaris is designed to maintain personalized conversations across sessions by combining conversation history, summarized memories, and user preferences. It supports multiple user profiles, private accounts, and graceful fallback between different AI providers.
 
-2. Voice and text interaction
-   - Accepts either typed input or microphone input.
-   - Can respond through text or speech.
+---
 
-3. Profile-aware memory
-   - Supports multiple user profiles.
-   - Allows private profiles with password protection.
-   - Stores profile preferences and long-term session summaries in SQLite.
+## <u> Features ✨ </u>
 
-4. Desktop command handling
-   - Executes common local actions such as volume, brightness, Wi-Fi, Bluetooth, browser, screen, and gesture commands.
-   - Routes explicit desktop requests directly to the matching module instead of sending them to the language model.
+* 💬 Text and voice input
+* 🔊 Text and voice output
+* 👤 Multiple user profiles
+* 🔒 Password-protected private profiles
+* 🧠 Long-term memory using SQLite
+* 📝 Automatic session summarization
+* ⚙️ User preference learning
+* 🔄 Multi-provider AI fallback
+* 💾 Local-first architecture
 
-## Primary Entry Point
+---
 
-The main runtime is:
+## <u> Project Structure 🧱 </u>
 
-- `merged_assistant.py`
+|File	|Purpose|
+|---|---|
+|chatbot.py	|Main assistant with chat, profiles, memory and voice support
+|helper_ai.py	|Preference extraction and session summarization
+|main_db.py	|Profile management and user database
+|history_db.py	|Long-term conversation history storage
+|merged_assistant.py	|Extended assistant with desktop automation support
+|requirements.txt	|Project dependencies
 
-This is the integrated assistant that combines chat, memory, profiles, and desktop automation.
+---
+## <u> Architecture </u>
+![UX Flow](assets/UX_Flow.png)
 
-## Core Capabilities
+![Program Flow](assets/Program_flow.png)
 
-### Assistant Behavior
+![LLM_fallback](assets/LLM_fallback.png)
 
-- Gemini as the first chat provider
-- OpenRouter as the fallback provider
-- Ollama as the local offline fallback
-- Preference summarization for each profile
-- Session summarization for long-term memory
+![Memory and Preference](assets/memory.png)
 
-### Interaction Modes
+---
 
-- Text input
-- Voice input using Faster-Whisper
-- Text output
-- Voice output using Edge-TTS
 
-### Profile Management
+## <u> How Solaris Works </u>
 
-- Create new profiles
-- Load existing profiles
-- Update preferences
-- Deactivate and reactivate profiles
-- Protect private profiles with a numeric password
+The assistant maintains three layers of context:
 
-### Desktop Automation
+1. Current Conversation – Active chat history.
+2. Session Memory – Important facts summarized during the current session.
+3. Long-Term Memory – Persistent summaries stored in SQLite and retrieved in future conversations.
 
-Supported command areas include:
+User preferences are automatically summarized into concise behavioral instructions, allowing Solaris to remain consistent across multiple sessions.
 
-- Volume control
-- Brightness control
-- Wi-Fi control
-- Bluetooth control
-- Browser opening and search
-- Screen text actions
-- Keyboard input helpers
-- Gesture control
-- Instagram messaging via the browser automation module
+---
 
-## Repository Layout
+### <u> Profiles 👤 </u>
 
-- `merged_assistant.py` - integrated assistant and command router
-- `helper_ai.py` - preference and memory summarization
-- `main_db.py` - profile storage, privacy, activation, and preference management
-- `history_db.py` - long-term memory storage
-- `database.db` - SQLite database created at runtime
-- `System_Logs.txt` - runtime log file
-- `drive-download-20260630T102541Z-3-001/` - desktop automation modules
-- `requirements.txt` - Python dependencies
-- `chatbot.py`, `index.py`, `test.py` - earlier or auxiliary scripts kept in the repository
+At startup, Solaris allows you to:
 
-The desktop automation bundle contains modules for:
+* Create new profiles
+* Open existing profiles
+* Update profile preferences
+* Activate or deactivate profiles
+* Secure private profiles with a numeric password
 
-- `volume_control.py`
-- `brightness_control.py`
-- `wifi_bluetooth.py`
-- `browser_automation.py`
-- `screen_vision.py`
-- `gesture_control.py`
+---
 
-## Requirements
+### <u> Chat Modes 🎙️ </u>
 
-- Python 3.11 or later is recommended
-- SQLite support
-- Microphone access for voice input
-- Speaker or audio output for voice responses
-- Optional: Ollama for local fallback execution
-- Optional: Gemini API key
-- Optional: OpenRouter API keys
+Choose your preferred interaction style:
 
-## Installation
+**Input**
+
+* Text
+* Voice
+
+**Output**
+
+* Text
+* Speech
+
+You can also switch between supported text-to-speech backends during runtime.
+
+---
+
+### <u>Model Fallback Pipeline 🔁</u>
+
+Solaris automatically switches providers if one becomes unavailable.
+
+Primary Chat Pipeline
+
+1. Gemini
+2. OpenRouter
+3. Ollama
+
+Memory & Preference Summarization
+
+1. OpenRouter
+2. Ollama
+
+This ensures the assistant continues functioning even if cloud providers fail.
+
+---
+
+## <u>Requirements 📌</u>
+
+* Python 3.11+
+* SQLite
+* Microphone (for voice input)
+* Audio output device (for speech)
+* Ollama (optional, for offline fallback)
+* Gemini API Key (optional)
+* OpenRouter API Key (optional)
+
+---
+
+## <u>Installation 🛠️</u>
+
+Install the required dependencies:
 
 ```bash
-git clone <your-repository-url>
-cd AI
 pip install -r requirements.txt
 ```
+---
 
-## Configuration
+Environment Variables
 
-Create a `.env` file in the project root with the required API keys:
+Create a .env file in the project root.
 
 ```bash
 GEMINI_API_KEY="your_gemini_api_key"
@@ -121,95 +147,104 @@ OR_API_KEY="your_openrouter_api_key"
 OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
 ```
 
-Notes:
+<u>API Usage 🔐</u>
 
-- `GEMINI_API_KEY` is used for primary chat responses.
-- `OR_API_KEY` is used for OpenRouter chat fallback.
-- `OR_ASSIST_API_KEY` is used by the helper AI that summarizes preferences and session memory.
-- If the remote providers are unavailable, the assistant can fall back to Ollama.
+|Variable |	Purpose |
+|---|---|
+|GEMINI_API_KEY	|Primary Gemini chat requests
+|OR_API_KEY	| OpenRouter fallback chat
+|OR_ASSIST_API_KEY	| Preference and memory summarization
 
-## Running The Assistant
+---
 
-```bash
-python merged_assistant.py
-```
+## <u>Running the Assistant ▶️</u>
 
-During startup, the assistant will:
+Start the standard assistant:
 
-1. Initialize the database tables
-2. Ask for input mode
-3. Ask for output mode
-4. Present available profiles
-5. Start the session
+python chatbot.py
 
-## Common Commands
+The assistant will:
 
-### Session and Profile Commands
+1. Initialize the database
+2. Select input mode
+3. Select output mode
+4. Open or create a user profile
+5. Begin the conversation
 
-- `.HELP` - show built-in commands
-- `.CHANGE` - switch public profiles during a session
-- `bye`, `exit`, `goodbye`, `quit`, `close` - end the session and save memory
+---
 
-### Desktop Commands
+## <u>Built-In Commands ⌨️</u>
 
-- `set volume 50`
-- `volume up 10`
-- `brightness down 15`
-- `turn on wifi`
-- `turn off bluetooth`
-- `open gmail`
-- `open youtube lo-fi music`
-- `open example.com`
-- `close chrome`
-- `click Submit`
-- `find text Settings`
-- `press enter`
-- `type hello world`
-- `start gesture control`
-- `stop gesture control`
-- `gesture status`
+| Command | Description|
+| --- | --- |
+|.HELP	| Display available commands
+|.CHANGE	|Switch to another public profile
+|.VOICE	|Change the speech backend
+|exit, quit, bye, goodbye, close	|Save the session summary and exit
 
-### Browser and Search Examples
+---
 
-- `open youtube in chrome`
-- `open gmail in safari`
-- `google python decorators`
-- `search google for best prompt patterns`
+## <u>Runtime Files 💾</u>
 
-## Data And Persistence
+The following files are generated while Solaris is running:
 
-The assistant persists:
+| File	| Purpose |
+|---| --- |
+|database.db	|SQLite database
+|System_Logs.txt	|Application logs
+|input.wav |	Recorded voice input
+|output.wav	| Generated speech output
 
-- Profile definitions
-- Privacy and activation state
-- Profile preferences
-- Session summaries for long-term memory
-- Runtime logs
+---
 
-Generated artifacts such as `input.wav`, `output.wav`, and `System_Logs.txt` are runtime files and can be regenerated.
+## <u>Database Design 🗂️</u>
 
-## Design Notes
+The assistant separates user information from conversational memory.
 
-This project is built around a simple rule:
+### <u>user_data</u>
 
-- If the request is a direct desktop action, handle it locally.
-- If the request is conversational, route it through the AI providers.
-- If the conversation matters for future use, summarize and store it.
+**Managed by main_db.py**
 
-That keeps the assistant responsive while still preserving context across sessions.
+Stores:
 
-## Platform Notes
+* User profiles
+* Passwords
+* Privacy settings
+* Activation state
 
-- Voice features require working audio hardware.
-- Some desktop control features are platform dependent.
-- Browser automation and gesture control may require extra OS permissions.
-- Ollama must be installed and running locally if you want offline fallback behavior.
+### <u>history</u>
 
-## Status
+**Managed by history_db.py**
 
-This repository is a functional personal assistant project with an emphasis on:
+Stores:
 
-- personal productivity
-- profile-based memory
-- local desktop control
-- model fallback resilience
+* Session summaries
+* Long-term memory
+* Associated user_id
+
+Separating these tables keeps profile management independent from conversational memory while maintaining their relationship through the user ID.
+
+---
+## <u>Notes 📝</u>
+
+* Voice input records a short audio sample before transcription.
+* Private profiles are protected using a numeric password.
+* Deactivated profiles require an activation code before reuse.
+* If cloud providers become unavailable, Solaris automatically falls back to Ollama (when configured).
+
+---
+
+## <u>Future Improvements 🚀</u>
+
+* Additional local model support
+* Richer long-term memory retrieval
+* Smarter preference learning
+* Plugin and tool integration
+* Expanded desktop automation capabilities
+
+
+## <u> P.S. </u>
+
+Solaris serves as the core AI engine behind another project called Stellar.
+
+Stellar currently integrates Solaris v1 as its conversational backend. From Solaris v2.0 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
