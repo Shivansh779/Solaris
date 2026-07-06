@@ -1,4 +1,4 @@
-# <u>Solaris – Personal AI Assistant 🤖</u>
+# <u>Solaris – Personal AI Chatbot</u>
 
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
@@ -11,7 +11,7 @@
 ![Status](https://img.shields.io/badge/Status-Active%20Development-blue)
 
 
-A local, profile-aware AI assistant with persistent memory, multiple LLM fallbacks, voice support, and SQLite-backed long-term context.
+A local, profile-aware AI chatbot with persistent memory, multiple LLM fallbacks, voice support, and SQLite-backed long-term context.
 
 Solaris is designed to maintain personalized conversations across sessions by combining conversation history, summarized memories, and user preferences. It supports multiple user profiles, private accounts, and graceful fallback between different AI providers.
 
