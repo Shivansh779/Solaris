@@ -181,6 +181,7 @@ The assistant will:
 |.HELP	| Display available commands
 |.CHANGE	|Switch to another public profile
 |.VOICE	|Change the speech backend
+|.ABOUT |Displays Information about Solaris, and Profile Details
 |exit, quit, bye, goodbye, close	|Save the session summary and exit
 
 ---
