@@ -15,24 +15,27 @@ import ollama
 import time
 import sys
 
-import helper_ai
-import history_db
 import main_db
-
-# Current Time Function
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+import history_db
 
 # Logging Function Definition
 def system_log(category, level, message):
     with open("System_Logs.txt", "a") as f:
         f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
 
+# Current Time Function
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
 # Create the tables for the Database
 main_db.create_table()
 history_db.enable_foreign_key()
 history_db.create_table()
 system_log("SYSTEM", "INFO", "Application database tables initialized.")
+
+import helper_ai
+
+session_start_time = current_time()
 
 conv_history = []
 session_history = []
@@ -81,11 +84,14 @@ else:
 ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
 system_log("SYSTEM", "INFO", "AI output mode selected.")
-print("Options for Text-to-Speech Model:\n1. EdgeTTS (Requires Internet, Indian Accent)\n2. KittenTTS (Offline, British Accent)")
-pref = int(input("Enter which Text-to-Speech Model you want to use: "))
-if pref > 2 or pref < 1:
-    print("Invalid choice. Restart Program!")
-    sys.exit(0)
+pref = None
+if ai_voice_text == 'v':
+    print("Options for Text-to-Speech Model:\n1. EdgeTTS (Requires Internet, Indian Accent)\n2. KittenTTS (Offline, British Accent)")
+    pref = int(input("Enter which Text-to-Speech Model you want to use: "))
+
+    if pref > 2 or pref < 1:
+        print("Invalid choice. Restart Program!")
+        sys.exit(0)
 
 for user in main_db.check_existing():
     if user[2] == 1 and user[3] == 0:
@@ -102,7 +108,8 @@ Enter Number of Profile to use it, or
 Create New Profile (Type N), or
 Update Preferences of a Profile (Type ID.update), or
 Deactivate Profile (Type ID.deactivate), or
-Activate Profile (Type ID.activate), or,
+Activate Profile (Type ID.activate), or
+Rename (ID.rename), or
 Exit (type .exit)
 Enter your Choice:  """
 ).strip().lower()
@@ -268,6 +275,14 @@ elif len(existing) > 1 and existing[1] == "activate" and main_db.fetch_status(ex
         sys.exit()
     sys.exit()
 
+# Rename a Profile
+elif len(existing) > 1 and existing[1] == "rename":
+    new_name = input("Enter new name: ")
+    system_log("PROFILE", "INFO", f"Profile rename requested for user_id={existing[0]}. New Name: {new_name}.")
+    main_db.rename_user(existing[0], new_name)
+    print("Profile Rename! Restart Application to see changes.")
+    sys.exit()
+
 # Exitting the Application
 elif len(existing) < 2 and existing[0] == "exit":
     system_log("SYSTEM", "INFO", "Application exited from profile selection.")
@@ -291,7 +306,7 @@ def ai_voice_manager(pref, response):
             system_log("SYSTEM", "ERROR", f"Error in EdgeTTS. {e}\nSwitched to KittenTTS!")
             kitten_tts(response)
     elif pref == 2:
-        kitten_tts(response)
+        kitten_tts(response=response)
         system_log("SYSTEM", "INFO", "KittenTTS selected.")
 
 def kitten_tts(kitten_model, response):
@@ -401,6 +416,7 @@ while True:
         print(".CHANGE - to Chaange Profiles\nprofile_number.update - To Update Preferences")
         print("exit/goodbye/bye - To Exit")
         print(".VOICE - To Change the Text-To-Speech model")
+        print(".ABOUT - See about the Profile and the AI Chatbot.")
         continue
 
     elif ".CHANGE" in question:
@@ -437,6 +453,10 @@ while True:
                 system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: KittenTTS")
         continue
 
+    elif ".ABOUT" in question:
+        print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
+        continue
+
     # Add to current chat conv_history and session_history
     conv_history.append({
         "role": "user",
@@ -471,7 +491,6 @@ while True:
     exit_commands = ['exit', 'quit', 'close', 'bye', 'goodbye']
 
     if  any(item in temp_question for item in exit_commands):
-        now = current_time()
         response = "Goodbye! Have a great day ahead!"
         system_log("SYSTEM", "INFO", f"Shutdown requested by user_id={current_user_id}.")
         if ai_voice_text == 'v':
@@ -481,7 +500,7 @@ while True:
         else:
             print("AI: " + response)
         processed_session_hist = helper_ai.summarise_session(session_history)
-        history_db.store_history(now, current_user_id, processed_session_hist)
+        history_db.store_history(session_start_time, current_user_id, processed_session_hist)
         system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")
         break
 

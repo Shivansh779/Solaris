@@ -1,8 +1,11 @@
 import os
+import sqlite3
 from openai import OpenAI
 from dotenv import load_dotenv
 import ollama
 from datetime import datetime
+import platform
+from textwrap import dedent
 
 def system_log(category, level, message):
     with open("System_Logs.txt", "a") as f:
@@ -201,3 +204,149 @@ Conversation:
             text = text.replace("...done thinking", "")
         system_log("AI", "INFO", "Current chat summarization completed with Ollama.")
         return text
+
+def count_sessions (user_id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT COUNT(Session_id) FROM history WHERE user_id = ?;
+    """, (user_id,)
+    )
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return data[0]
+
+def current_profile_info (user_id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT name, is_active, is_private FROM user_data WHERE user_id = ?;
+    """, (user_id,))
+    data = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return data[0], data[1], data[2]
+
+def profiles_data ():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT COUNT(user_id) FROM user_data;
+    """)
+    data1 = cursor.fetchone()
+    cursor.execute("""
+        SELECT COUNT(user_id) FROM user_data WHERE is_active = 1;
+    """)
+    data2 = cursor.fetchone()
+    cursor.execute("""
+        SELECT COUNT(user_id) FROM user_data WHERE is_private = 0;
+    """)
+    data3 = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return data1[0], data2[0], data3[0]
+
+def about(user_id, input, output, voice_model):
+    if platform.system() == "Darwin":
+        system = "macOS"
+    elif platform.system() == "Windows":
+        system = "Windows"
+    else:
+        system = "Linux"
+
+    if input == "v":
+        input_mode = "Voice"
+        input_model = "Faster-Whisper"
+    else:
+        input_mode = "Text"
+        input_model = "N/A"
+
+
+    if output == "v":
+        output_mode = "Voice"
+        if voice_model == 1:
+            model = "EdgeTTS"
+        else:
+            model = "KittenTTS"
+    else:
+        output_mode = "Text"
+        model = "N/A"
+
+    profiles, active, private = profiles_data()
+
+    username, status, privacy = current_profile_info(user_id)
+
+
+    message = dedent(f"""
+        ====================================================
+                            About - Solaris
+        ====================================================      
+            Version        : 1.0.1
+            Developer      : Shivansh Singh
+            Platform       : {system} {platform.release()}
+            Languages      : Python {platform.python_version()}, SQLite3 ({sqlite3.sqlite_version}) 
+            Architecture   : {platform.machine()}
+        
+        ----------------------------------------------------
+        
+        Current Profile    : {username}
+        Profile ID         : {user_id}
+        Privacy            : {privacy}
+        Status             : {status}
+        
+       Total Sessions      : {count_sessions(user_id)}
+       
+       -----------------------------------------------------
+       
+       Primary AI          : Gemini 2.5 Flash
+       Fallback Models
+       - GPT-OSS-120B
+       - Llama 3.3 70B
+       - Nemotron 550B
+       
+       Offline Model       : Qwen3:4B
+       
+       -----------------------------------------------------
+       
+       Input Mode          : {input_mode}
+       Speech Model        : {input_model}
+       
+       Output Mode         : {output_mode}
+       TTS Model           : {model}
+       Available Output Models:
+       - EdgeTTS
+       - KittenTTS
+       
+       -----------------------------------------------------
+       
+       Database            : SQLite3
+       
+       Profiles            : {profiles}
+       Active Profiles     : {active}
+       Private Profiles    : {private}
+       
+       -----------------------------------------------------
+       Features
+
+        ✓ Multi-user Profiles
+        ✓ Long-term Memory
+        ✓ Voice Input
+        ✓ Voice Output
+        ✓ AI Fallback
+        ✓ Session Summaries
+        ✓ Preference Learning
+       
+       -----------------------------------------------------
+       Useful Commands
+        .HELP
+        .CHANGE
+        .VOICE
+        .RENAME
+        .CLEAR
+        .ABOUT  
+       =====================================================
+       Built with curiosity and lots of debugging.
+       =====================================================
+        """)
+    return message

@@ -58,6 +58,17 @@ def deactivate_user (user_id):
     conn.close()
     return code
 
+def rename_user (user_id, new_name):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE user_data SET name = ? WHERE user_id = ?;
+    """, (new_name, user_id)
+    )
+    system_log("DATABASE", "INFO", f"Updated user profile as renamed for user_id={user_id}.")
+    conn.commit()
+    cursor.close()
+    conn.close()
 
 def activate_user (user_id):
     conn = get_conn()
