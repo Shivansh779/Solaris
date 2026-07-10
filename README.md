@@ -1,4 +1,4 @@
-# <u>Solaris – Personal AI Assistant 🤖</u>
+# <u>Solaris – Personal AI Chatbot</u>
 
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
@@ -11,7 +11,7 @@
 ![Status](https://img.shields.io/badge/Status-Active%20Development-blue)
 
 
-A local, profile-aware AI assistant with persistent memory, multiple LLM fallbacks, voice support, and SQLite-backed long-term context.
+A local, profile-aware AI chatbot with persistent memory, multiple LLM fallbacks, voice support, and SQLite-backed long-term context.
 
 Solaris is designed to maintain personalized conversations across sessions by combining conversation history, summarized memories, and user preferences. It supports multiple user profiles, private accounts, and graceful fallback between different AI providers.
 
@@ -44,13 +44,13 @@ Solaris is designed to maintain personalized conversations across sessions by co
 
 ---
 ## <u> Architecture </u>
-![UX Flow](assets/UX_Flow.png)
+![UX Flow](UX_Flow.png)
 
-![Program Flow](assets/Program_flow.png)
+![Program Flow](Program_flow.png)
 
-![LLM_fallback](assets/LLM_fallback.png)
+![LLM_fallback](LLM_fallback.png)
 
-![Memory and Preference](assets/memory.png)
+![Memory and Preference](memory.png)
 
 ---
 
@@ -160,8 +160,9 @@ OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
 ## <u>Running the Assistant ▶️</u>
 
 Start the standard assistant:
-
+```bash
 python chatbot.py
+```
 
 The assistant will:
 
