@@ -240,7 +240,7 @@ def profiles_data ():
     """)
     data2 = cursor.fetchone()
     cursor.execute("""
-        SELECT COUNT(user_id) FROM user_data WHERE is_private = 0;
+        SELECT COUNT(user_id) FROM user_data WHERE is_private = 1;
     """)
     data3 = cursor.fetchone()
     cursor.close()
@@ -292,8 +292,8 @@ def about(user_id, input, output, voice_model):
         
         Current Profile    : {username}
         Profile ID         : {user_id}
-        Privacy            : {privacy}
-        Status             : {status}
+        Privacy            : {"Private" if privacy == 1 else "Public"}
+        Status             : {"Active" if active == 1 else "Inactive"}
         
        Total Sessions      : {count_sessions(user_id)}
        
