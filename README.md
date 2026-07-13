@@ -17,7 +17,7 @@ Solaris is designed to maintain personalized conversations across sessions by co
 
 ---
 
-## <u> Features ✨ </u>z
+## <u> Features ✨ </u>
 
 * 💬 Text and voice input
 * 🔊 Text and voice output
