@@ -199,6 +199,24 @@ def update_user_pref (user_id, preference):
     cursor.close()
     conn.close()
 
+def update_privacy (user_id, privacy):
+    conn = get_conn()
+    cursor = conn.cursor()
+    if privacy == 0:
+        cursor.execute("""
+            UPDATE user_data SET is_private = ? WHERE user_id = ?;
+        """, (privacy, user_id)
+        )
+    else:
+        cursor.execute("""
+            UPDATE user_data SET is_private = ?, password = ? WHERE user_id = ?;
+        """, (privacy, password, user_id)
+        )
+    conn.commit()
+    system_log("DATABASE", "INFO", f"Updated privacy settings for user_id={user_id}.")
+    cursor.close()
+    conn.close()
+
 def fetch_user_id (name):
     conn = get_conn()
     cursor = conn.cursor()

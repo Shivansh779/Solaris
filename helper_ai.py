@@ -125,10 +125,13 @@ Discard:
 - Temporary requests
 - One-off questions
 - AI responses
+- Any command starting with "." in capital letters.
 Output:
 - Short bullet points
 - One memory per line
 - No explanations
+
+You may return a blank session or N/A if necessary.
 
 Conversation:
 {conv_history}

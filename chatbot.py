@@ -1,3 +1,4 @@
+import platform
 from google import genai
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -14,6 +15,7 @@ from datetime import datetime
 import ollama
 import time
 import sys
+from textwrap import dedent
 
 import main_db
 import history_db
@@ -117,7 +119,7 @@ Enter your Choice:  """
 existing = existing.split(".")
 
 current_user_id = None
-
+# New Profile
 if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
@@ -284,7 +286,7 @@ elif len(existing) > 1 and existing[1] == "rename":
     sys.exit()
 
 # Exitting the Application
-elif len(existing) < 2 and existing[0] == "exit":
+elif len(existing) < 3 and existing[1] == "exit":
     system_log("SYSTEM", "INFO", "Application exited from profile selection.")
     print("Goodbye! Have a Great Day!")
     sys.exit()
@@ -294,7 +296,6 @@ else:
     print("Invalid Option Selected!")
     print("Retry!")
     sys.exit()
-
 
 # Important Function Definitions
 def ai_voice_manager(pref, response):
@@ -417,6 +418,8 @@ while True:
         print("exit/goodbye/bye - To Exit")
         print(".VOICE - To Change the Text-To-Speech model")
         print(".ABOUT - See about the Profile and the AI Chatbot.")
+        print(".UPDATE_PRIVACY - To Update Privacy Settings")
+        print(".CLEAR - Clears the terminal window. Conversation, memory, and context remain unchanged.")
         continue
 
     elif ".CHANGE" in question:
@@ -455,6 +458,55 @@ while True:
 
     elif ".ABOUT" in question:
         print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
+        continue
+
+    elif ".UPDATE_PRIVACY" in question:
+        print(f"Current Privacy Setting: {"Public" if main_db.fetch_privacy_setting(current_user_id) == 0 else "Private"}")
+        preference = input(f"Switch Privacy Setting to {"Public" if main_db.fetch_privacy_setting(current_user_id) == 1 else "Private"}? "
+              f"(Y/N) ")
+        if preference in ["Y", "y"]:
+            if main_db.fetch_privacy_setting(current_user_id) == 1:
+                attempts = 3
+                while attempts > 0:
+                    password = input("Enter Password to change Privacy Settings: ")
+                    if password == main_db.fetch_password(current_user_id):
+                        main_db.update_privacy(current_user_id,  0)
+                        break
+                    else:
+                        attempts -= 1
+                        print("Invalid Password. Remaining Attempts: " + attempts)
+            else:
+                main_db.update_privacy(current_user_id, 1)
+                print("Privacy Settings Changed!")
+                print("Your Password is " + main_db.fetch_password(current_user_id))
+
+        elif preference in ['N', 'n']:
+            print("Private Settings Remain Unchanged")
+        else:
+            print("Invalid Choice")
+        continue
+
+    elif ".CLEAR" in question:
+        print("Clearing terminal window...")
+        time.sleep(1)
+        if platform.system() == "Windows":
+            os.system("cls")
+        else:
+            if os.getenv("TERM"):
+                os.system("clear")
+            else:
+                print("\n" * 100)
+        print(dedent("""
+        ====================================================
+                            Solaris
+        ====================================================
+        
+        Screen cleared.
+        Conversation context is still active.
+        
+        Type .HELP for commands.
+        ====================================================
+        """))
         continue
 
     # Add to current chat conv_history and session_history

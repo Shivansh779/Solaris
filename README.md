@@ -17,7 +17,7 @@ Solaris is designed to maintain personalized conversations across sessions by co
 
 ---
 
-## <u> Features ✨ </u>
+## <u> Features ✨ </u>z
 
 * 💬 Text and voice input
 * 🔊 Text and voice output
@@ -182,6 +182,8 @@ The assistant will:
 |.CHANGE	|Switch to another public profile
 |.VOICE	|Change the speech backend
 |.ABOUT |Displays Information about Solaris, and Profile Details
+|.UPDATE_PRIVACY | To Update Privacy Settings
+|.CLEAR | Clears the terminal window. Conversation, memory, and context remain unchanged.
 |exit, quit, bye, goodbye, close	|Save the session summary and exit
 
 ---
