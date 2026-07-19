@@ -24,6 +24,7 @@ def create_table():
                 user_id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 prefers TEXT NOT NULL,
+                about_user TEXT NOT NULL,
                 is_private INTEGER NOT NULL DEFAULT 0,   --0 = Public, 1 = Private
                 password TEXT NULL,
                 is_active INTEGER NOT NULL DEFAULT 1,    --0 = Inactive, 1 = Active
@@ -149,12 +150,12 @@ def check_existing ():
     conn.close()
     return data
 
-def get_preference (user_id):
+def get_data (user_id):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT prefers, name FROM user_data WHERE user_id = ?;
+            SELECT prefers, name, about_user FROM user_data WHERE user_id = ?;
         """,
         (user_id,)
     )
@@ -164,20 +165,20 @@ def get_preference (user_id):
     conn.close()
     return data
 
-def new_user (name, preference, is_private):
+def new_user (name, preference, is_private, about_user):
     conn = get_conn()
     cursor = conn.cursor()
     if is_private == 1:
         cursor.execute(
             """
-                INSERT INTO user_data (name, prefers, is_private, password) VALUES(?, ?, ?, ?);
-            """, (name, preference, is_private, password)
+                INSERT INTO user_data (name, prefers, is_private, password, about_user) VALUES(?, ?, ?, ?, ?);
+            """, (name, preference, is_private, password, about_user)
         )
     else:
         cursor.execute(
             """
-                INSERT INTO user_data (name, prefers) VALUES (?, ?);
-            """, (name, preference)
+                INSERT INTO user_data (name, prefers, about_user) VALUES (?, ?, ?);
+            """, (name, preference, about_user)
         )
     conn.commit()
     user_id = cursor.lastrowid
@@ -214,6 +215,18 @@ def update_privacy (user_id, privacy):
         )
     conn.commit()
     system_log("DATABASE", "INFO", f"Updated privacy settings for user_id={user_id}.")
+    cursor.close()
+    conn.close()
+
+def update_about_user (about_user, user_id):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE user_data SET about_user = ? WHERE user_id = ?;
+    """, (about_user, user_id)
+    )
+    conn.commit()
+    system_log("DATABASE", "INFO", f"Updated about user_id={user_id}.")
     cursor.close()
     conn.close()
 

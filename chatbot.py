@@ -123,6 +123,7 @@ current_user_id = None
 if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
+    about_user = input("Tell Solaris about yourself (prefer to keep it in 50 words): ")
     privacy_setting = input("Do you want it to be a Private Profile? (Y/N) ")
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
@@ -133,9 +134,11 @@ if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
         is_private = 0
         print("Your Profile is Public")
     processed_pref = helper_ai.summarise_pref(preference)
-    current_user_id = main_db.new_user(name, processed_pref, is_private)
+    processed_about = helper_ai.summarise_about(about_user)
+    current_user_id = main_db.new_user(name, processed_pref, is_private, processed_about)
     system_log("PROFILE", "INFO", f"Created new profile with user_id={current_user_id}.")
     preference = processed_pref
+    about_user = processed_about
 
 # Private Profiles
 elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
@@ -148,9 +151,10 @@ elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
         if user_password == password:
             print("Acces Granted!")
             system_log("PROFILE", "INFO", f"Private profile access granted for user_id={existing[0]}.")
-            data = main_db.get_preference(existing[0])
+            data = main_db.get_data(existing[0])
             preference = data[0]
             name = data[1]
+            about_user = data[2]
             current_user_id = int(existing[0])
             break
         else:
@@ -196,15 +200,28 @@ elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_se
 # Public Profiles
 elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(existing[0]) == 1:
     system_log("PROFILE", "INFO", f"Public profile update requested for user_id={existing[0]}.")
-    preference = input("Enter the new description of how you want the AI to behave: ")
-    processed_pref = helper_ai.summarise_pref(preference)
-    main_db.update_user_pref(int(existing[0]), processed_pref)
-    system_log("PROFILE", "INFO", f"Public profile preferences updated for user_id={existing[0]}.")
-    preference = processed_pref
+    choice = int(input("\n\n1. Update Preferences\n2. Update the Description About Yourself\nEnter Choice: "))
+    if choice == 1:
+        current_pref = main_db.get_data(existing[0])[0]
+        print("Current Preference\n" + str(current_pref))
+        preference = input("Enter the new description of how you want the AI to behave: ")
+        processed_pref = helper_ai.summarise_pref(preference)
+        main_db.update_user_pref(int(existing[0]), processed_pref)
+        system_log("PROFILE", "INFO", f"Public profile preferences updated for user_id={existing[0]}.")
+    elif choice == 2:
+        current_about = main_db.get_data(existing[0])[2]
+        print("Current About Yourself\n" + str(current_about))
+        about_user = input("Tell Solaris About ourself in 50 words: ")
+        processed_about = helper_ai.summarise_pref(about_user)
+        main_db.update_about_user(processed_about, existing[0])
+        system_log("PROFILE", "INFO", f"Public profile about user_id={existing[0]} has been updated.")
+
     current_user_id = int(existing[0])
-    data = main_db.get_preference(current_user_id)
+    data = main_db.get_data(current_user_id)
     name = data[1]
     preference = data[0]
+    about_user = data[2]
+
 elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
     try:
         existing = int(existing[0])
@@ -532,7 +549,7 @@ while True:
         for summary, timestamp in memories
     )
 
-    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question)
+    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user)
 
     if not question:
         print("No speech detected.")
@@ -586,4 +603,3 @@ while True:
             print("Rate Limit Reached!")
         else:
             print(f"An error occurred: {e}")
-

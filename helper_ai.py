@@ -27,7 +27,7 @@ client_or = OpenAI(
 # If Network is down, or Rate Limits; Ollama
 ollama_model = "qwen3:4b"
 
-def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question):
+def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user):
     prompt = f"""
     You are a voice assistant.
 
@@ -50,6 +50,9 @@ def build_prompt(name, preference, imp_conv_history, conversation_text, memory_t
     
     Past Sessions:
     {memory_text}
+    
+    About the User:
+    {about_user}
 
     User's question: {question}
 """
@@ -353,3 +356,50 @@ def about(user_id, input, output, voice_model):
        =====================================================
         """)
     return message
+
+def summarise_about(about_user):
+    system_log("AI", "INFO", "Starting summarization of details of the User.")
+    prompt = f"""
+You are a Summariser of Details of the User.
+Extract only information that would help an AI assistant provide better future responses.
+Keep:
+- Information About User
+- Important Factual, constant information (dates and etc.)
+Discard:
+- Non-Permanent Information
+Output:
+- Short bullet points
+- No explanations
+- Try to segregate into four categories, Name, Occupation (Student if they mention class),
+    DOB, and Interests (if they provide the last two)
+    
+Conversation:
+{about_user}
+"""
+    try:
+        response = client_or.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        text = response.choices[0].message.content
+        system_log("AI", "INFO", "User detail summarization completed with OpenRouter.")
+        return text
+    except Exception as e:
+        system_log("AI", "WARNING",
+                   f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")
+        response = ollama.chat(
+            model=ollama_model,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        text = response['message']['content']
+        if "...done thinking" in text:
+            text = text.replace("...done thinking", "")
+        system_log("AI", "INFO", "User detail summarization completed with Ollama.")
+        return text
