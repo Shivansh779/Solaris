@@ -251,4 +251,4 @@ Separating these tables keeps profile management independent from conversational
 
 Solaris serves as the core AI engine behind another project called Stellar.
 
-Stellar currently integrates Solaris v1 as its conversational backend. From Solaris v2.0 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
+Stellar currently integrates Solaris v1 as its conversational backend. From Solaris v1.0.1 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
