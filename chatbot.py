@@ -1,4 +1,7 @@
 import platform
+import random
+import textwrap
+import shutil
 from google import genai
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -16,9 +19,11 @@ import ollama
 import time
 import sys
 from textwrap import dedent
+import json
 
 import main_db
 import history_db
+from spinner import Spinner, RecordingTimer
 
 # Logging Function Definition
 def system_log(category, level, message):
@@ -58,6 +63,13 @@ MODEL = "gemini-2.5-flash"
 MODELS = ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free',
           'nvidia/nemotron-3-ultra-550b-a55b:free']
 
+with open("local.json", "r") as f:
+    raw_data = json.load(f)
+
+data = raw_data["model"].split("/")[1].lower()
+
+LOCAL_MODEl = data
+
 #OpenRouter Set-up
 openrouter_api_key = os.getenv("OR_API_KEY")
 client_or = OpenAI(
@@ -74,7 +86,7 @@ async def main(response):
 # KittenTTS
 kitten_model = None
 
-voice_text = input("Choose input mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
+voice_text = input("Voice (Enter V)\nText (Enter T) \nChoose input mode: ").strip().lower()
 print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for yourself.")
 
 if voice_text == 'v':
@@ -83,12 +95,12 @@ if voice_text == 'v':
 else:
     system_log("SYSTEM", "INFO", "Text input mode selected.")
 
-ai_voice_text = input("Choose output mode: Voice or Text (Press V for Voice, T for Text): ").strip().lower()
-print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.")
+ai_voice_text = input("\nVoice (Enter V)\nText (Enter T) \nChoose output mode: ").strip().lower()
+print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.\n")
 system_log("SYSTEM", "INFO", "AI output mode selected.")
 pref = None
 if ai_voice_text == 'v':
-    print("Options for Text-to-Speech Model:\n1. EdgeTTS (Requires Internet, Indian Accent)\n2. KittenTTS (Offline, British Accent)")
+    print("Options for Text-to-Speech Model" + "─"*36 + "\n1. EdgeTTS (Requires Internet, Indian Accent)\n2. KittenTTS (Offline, British Accent)")
     pref = int(input("Enter which Text-to-Speech Model you want to use: "))
 
     if pref > 2 or pref < 1:
@@ -113,7 +125,7 @@ Deactivate Profile (Type ID.deactivate), or
 Activate Profile (Type ID.activate), or
 Rename (ID.rename), or
 Exit (type .exit)
-Enter your Choice:  """
+Enter your Choice: """
 ).strip().lower()
 
 existing = existing.split(".")
@@ -186,6 +198,7 @@ elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_se
             data = main_db.get_preference(existing[0])
             preference = data[0]
             name = data[1]
+            about_user = data[2]
             current_user_id = int(existing[0])
             break
         else:
@@ -210,7 +223,7 @@ elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(exis
         system_log("PROFILE", "INFO", f"Public profile preferences updated for user_id={existing[0]}.")
     elif choice == 2:
         current_about = main_db.get_data(existing[0])[2]
-        print("Current About Yourself\n" + str(current_about))
+        print("Current About Yourself:\n" + str(current_about))
         about_user = input("Tell Solaris About ourself in 50 words: ")
         processed_about = helper_ai.summarise_pref(about_user)
         main_db.update_about_user(processed_about, existing[0])
@@ -225,9 +238,10 @@ elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(exis
 elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
     try:
         existing = int(existing[0])
-        data = main_db.get_preference(existing)
+        data = main_db.get_data(existing)
         preference = data[0]
         name = data[1]
+        about_user = data[2]
         current_user_id = existing
         system_log("PROFILE", "INFO", f"Profile selected with user_id={current_user_id}.")
     except Exception as e:
@@ -239,7 +253,7 @@ elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
 elif len(existing) > 1 and existing[1] == "deactivate" and main_db.fetch_status(existing[0]) == 1:
     user_id = int(existing[0])
     system_log("PROFILE", "INFO", f"Profile deactivation requested for user_id={user_id}.")
-    message = """"==========================
+    message = """==========================
 Deactivate Profile
 ==========================
 This profile will become inactive.
@@ -303,7 +317,7 @@ elif len(existing) > 1 and existing[1] == "rename":
     sys.exit()
 
 # Exitting the Application
-elif len(existing) < 3 and existing[1] == "exit":
+elif len(existing) > 1 and existing[1] == "exit":
     system_log("SYSTEM", "INFO", "Application exited from profile selection.")
     print("Goodbye! Have a Great Day!")
     sys.exit()
@@ -380,24 +394,22 @@ def ask_openrouter(prompt, models):
             return response.choices[0].message.content
         except Exception as e:
             system_log("AI", "WARNING", f"OpenRouter model failed: {model}. Error: {e}")
-            print(f"Please wait a few more seconds...")
+            print("⚠️Cloud models unavailable.\nSwitching to local AI...")
+            with Spinner(f"Running Locally..."):
+                response = ask_ollama(prompt, LOCAL_MODEl)
+            return response
 
-    system_log("AI", "WARNING", "All OpenRouter models failed; switching to Ollama.")
-    print("All AI Models Failed, switching to Ollama")
-    return ask_ollama(prompt)
-
-def ask_ollama(prompt):
-    system_log("AI", "INFO", "Using Ollama model: qwen3:4b.")
+def ask_ollama(prompt, model):
+    system_log("AI", "INFO", f"Using Ollama model: {model}")
     response = ollama.chat(
-        model="qwen3:4b",
+        model=model,
         messages=[
-            {"role" : "user", "content" : prompt}
+            {"role": "user", "content": prompt}
         ]
     )
     text = response['message']['content']
-    if "...done thinking." in text:
-        text = text.split("...done thinking.")[-1].strip()
     return text
+
 
 system_log("SYSTEM", "INFO", "Chat session started.")
 
@@ -410,34 +422,40 @@ while True:
         system_log("AI", "INFO", f"Current Session Summarised.\nImportant Memories stored: {len(imp_conv_history)}")
 
     if voice_text == 'v':
-        print("Recording...")
-        recording = sd.rec(int(seconds*fs), samplerate=fs, channels=1)
 
-        sd.wait()
+        with RecordingTimer(seconds):
+            recording = sd.rec(int(seconds*fs), samplerate=fs, channels=1)
+            sd.wait()
 
-        print("Transcribing...")
         write("input.wav", fs, recording)
-
-        segments, info = whisper_model.transcribe("input.wav")
-
+        with Spinner("Transcribing speech..."):
+            segments, info = whisper_model.transcribe("input.wav")
         transcribed_text = ""
-
         transcribed_text = "".join(segment.text for segment in segments).strip()
     elif voice_text == 't':
-        transcribed_text = input("You: ")
+        transcribed_text = input(f"\n╭─ 👤 {name}" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + "\n")
 
     # Send to the AI
-    print("\nYou: " + transcribed_text)
     question = transcribed_text.strip()
 
     if ".HELP" in question:
+        print("Available Commands" + "\n" + "─"*36 + "\n")
         print(".CHANGE - to Chaange Profiles\nprofile_number.update - To Update Preferences")
+        print(".BETTER - Get a better answer for a request.")
         print("exit/goodbye/bye - To Exit")
         print(".VOICE - To Change the Text-To-Speech model")
         print(".ABOUT - See about the Profile and the AI Chatbot.")
         print(".UPDATE_PRIVACY - To Update Privacy Settings")
         print(".CLEAR - Clears the terminal window. Conversation, memory, and context remain unchanged.")
+        print()
         continue
+
+    elif ".BETTER" in question:
+        print("Who do you want to answer?")
+        print("1. ✍️ The Writer      (Writing, essays, creative content)")
+        print("2. 💻 The Programmer (Coding, debugging, software design)")
+        print("3. 🧠 The Strategist (Reasoning, planning, problem solving)")
+        choice = int(input("Your option: "))
 
     elif ".CHANGE" in question:
         temp_list = []
@@ -565,26 +583,33 @@ while True:
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print("AI: " + response)
+            print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
         else:
-            print("AI: " + response)
+            print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
         processed_session_hist = helper_ai.summarise_session(session_history)
         history_db.store_history(session_start_time, current_user_id, processed_session_hist)
         system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")
         break
 
-    print("\nAI is thinking...\n")
-
     try:
-        response = ask_ai(prompt)
+        text = [
+            "Thinking...",
+            "Reasoning...",
+            "Recalling memories...",
+            "Building response...",
+            "Connecting ideas...",
+            "Analyzing context...",
+            "Writing reply..."
+        ]
+        with Spinner(random.choice(text)):
+            response = ask_ai(prompt)
 
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print("AI: " + response)
+            print(f"\n╭─ 🤖 Solaris" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
         else:
-            print("AI: " + response)
-
+            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
         # Append AI Response to History and session_history
         conv_history.append({
             "role": "assistant",
