@@ -33,13 +33,14 @@ Solaris is designed to maintain personalized conversations across sessions by co
 
 ## <u> Project Structure 🧱 </u>
 
+The Important files of this project and their use cases are as follows:
+
 |File	|Purpose|
 |---|---|
 |chatbot.py	|Main assistant with chat, profiles, memory and voice support
 |helper_ai.py	|Preference extraction and session summarization
 |main_db.py	|Profile management and user database
 |history_db.py	|Long-term conversation history storage
-|merged_assistant.py	|Extended assistant with desktop automation support
 |requirements.txt	|Project dependencies
 
 ---
@@ -251,4 +252,4 @@ Separating these tables keeps profile management independent from conversational
 
 Solaris serves as the core AI engine behind another project called Stellar.
 
-Stellar currently integrates Solaris v1 as its conversational backend. From Solaris v1.0.1 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
+Stellar currently integrates Solaris v1.0.0 as its conversational backend. From Solaris v1.0.1 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
