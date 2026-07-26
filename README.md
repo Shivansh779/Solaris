@@ -253,3 +253,9 @@ Separating these tables keeps profile management independent from conversational
 Solaris serves as the core AI engine behind another project called Stellar.
 
 Stellar currently integrates Solaris v1.0.0 as its conversational backend. From Solaris v1.0.1 onward, both projects are developed and maintained independently. Future updates to Solaris may not be reflected in Stellar unless they are explicitly integrated.
+
+---
+
+© 2026 Shivansh Singh
+Solaris is licensed under the MIT License.
+See the LICENSE file for details.
