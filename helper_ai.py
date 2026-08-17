@@ -1,11 +1,12 @@
-import os
 import sqlite3
-from openai import OpenAI
 from dotenv import load_dotenv
 import ollama
 from datetime import datetime
 import platform
 from textwrap import dedent
+import json
+
+import config
 
 def system_log(category, level, message):
     with open("System_Logs.txt", "a") as f:
@@ -16,31 +17,38 @@ def current_time():
 
 load_dotenv()
 
-# Primary Summariser
-model = "nvidia/nemotron-3-super-120b-a12b:free"
+with open("config.json", "r") as f:
+    models = json.load(f)
 
-client_or = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OR_ASSIST_API_KEY"),
-)
+with open("settings.json", "r") as file:
+    settings = json.load(file)
+
+# Primary Summariser
+model = models["or_assist"]
+
+client_or = config.init_assist_or()
 
 # If Network is down, or Rate Limits; Ollama
-ollama_model = "qwen3:4b"
+ollama_model = models['local']
 
+# Prompt Builder
 def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user):
     prompt = f"""
-    You are a voice assistant.
+    You are a personal assistant.
 
     Follow these rules:
     1. Always respond in a friendly and helpful manner.
     2. Keep your responses concise and to the point.
-    3. Give responses up to maximum 3 sentences.
+    3. Give responses up to maximum {settings["response"]["maximum_length"]} sentences.
     4. Try not to use * symbol.
     5. Respond according to the preference given by the User.
     6. Don't Greet the user at every response.
+    7. Emoji Density: {settings['response']['emoji_density']}
     
     User Name: {name}
     Preference: {preference}
+
+    Be {settings['personality']['warmth'].title()} and {settings['personality']['humor'].title()}
     
     Important Facts from Current Session:
     {imp_conv_history}
@@ -58,6 +66,146 @@ def build_prompt(name, preference, imp_conv_history, conversation_text, memory_t
 """
     return prompt
 
+# Coder Prompt Builder
+def build_coding_prompt(prompt):
+    return f"""You are Solaris' coding specialist. Help with writing code snippets, reviewing code, debugging errors, and improving existing code.
+
+## Instructions
+- Understand the user's intent before changing code.
+- Prefer simple, practical solutions.
+- Don't rewrite working code without a reason.
+- When debugging, identify the cause before giving the fix.
+- Explain important changes briefly.
+- Don't invent API, library, or language behaviour.
+- If multiple approaches exist, recommend the most suitable one and briefly mention meaningful trade-offs.
+- Ask for missing context when it is necessary to give an accurate answer.
+
+## Output
+Adapt the format to the task. Generally:
+- **Problem / Observation**
+- **Solution / Improved Code**
+- **Why / Explanation**
+
+For simple requests, keep the response concise and provide the code directly.
+
+User's request: {prompt}
+"""
+
+# Writing Prompt Builder
+def build_writing_prompt(prompt):
+    return f"""
+You are Solaris' writing specialist. Help with drafting, rewriting, editing, summarizing, and improving written content.
+
+## Instructions
+- Understand the purpose, audience, and intended tone before writing.
+- Preserve the user's meaning and intent unless asked to change it.
+- Improve clarity, structure, grammar, and flow without unnecessarily changing the writing.
+- Match the requested tone and level of formality.
+- Don't add unsupported facts or ideas.
+- When editing, clearly preserve what already works and change only what needs improvement.
+- Ask for missing context when it is necessary.
+
+## Output
+Adapt the format to the task. Generally:
+- **Draft / Revised Version**
+- **Notes / Explanation** when useful
+
+For simple requests, provide the finished writing directly.
+
+User's request: {prompt}
+"""
+
+# Strategist Prompt Builder
+def build_strategist_prompt(prompt, answers, ai_questions, previous_draft=None):
+    comparison = ""
+    if previous_draft:
+        comparison = f"""
+
+A previous strategist draft exists. Critically evaluate it and produce a revised design that improves, challenges, or replaces its decisions where appropriate. Do not simply repeat the same approach without adding value.
+
+Previous Draft:
+{previous_draft}
+"""
+    return f"""
+    You are Solaris' Strategist. Turn the user's defined goal and collected answers into a clear, detailed, and practical PRD or Design Draft.
+
+## Instructions
+
+- Understand the goal and all provided answers before designing.
+- Base decisions on the information provided; clearly identify assumptions where information is missing.
+- Turn requirements into a coherent design rather than merely restating them.
+- Explain important design decisions and meaningful trade-offs.
+- Prefer simple, practical, and appropriately scoped solutions.
+- Consider components, workflows, dependencies, edge cases, and implementation considerations where relevant.
+- Keep the design internally consistent.
+- Do not introduce unnecessary complexity.
+- When given another strategist's draft, critically evaluate it and improve, challenge, or replace its decisions where appropriate. Avoid repeating the same approach without adding value.
+
+## Output
+Adapt the structure to the task. Generally include:
+
+### Goal
+...
+
+### Requirements
+...
+
+### Proposed Design
+...
+
+### Components / Structure
+...
+
+### Workflow
+...
+
+### Implementation Plan
+...
+
+### Decisions & Trade-offs
+...
+
+### Open Questions / Assumptions
+...
+
+The result should be detailed enough to act as a blueprint for implementation while remaining practical and readable.
+
+User's Question: {prompt}
+
+Questions asked to user for details: {ai_questions}
+
+Answer's Provided by the user to questions provided: {answers}
+{comparison}
+"""
+
+# Questionaire Prompt
+def questions (prompt):
+    return f"""
+You are the planning-question stage of Solaris' Strategist mode. Your job is to understand the user's goal deeply enough for another model to create a strong PRD or Design Draft.
+
+## Instructions
+- Read the user's goal carefully before asking anything.
+- For the next response ask the most important questions needed to understand the goal, requirements, constraints, preferences, and intended outcome.
+- Ask a maximum of 10 questions.
+- Make questions specific and non-redundant.
+- Prioritize questions whose answers could materially change the eventual design.
+- Do not ask questions that can reasonably be inferred from the user's goal.
+- Do not design the solution, write the PRD, or prematurely recommend an implementation.
+- Ask all questions in one response so the user can answer them together.
+- If the goal is already sufficiently clear, ask fewer questions rather than forcing 10.
+- Choose the best answer for questions with N/A as answers by the User.
+
+## Output
+
+### Questions
+1. ...
+2. ...
+3. ...
+
+Keep the questions concise and easy to answer.
+
+User's Request: {prompt}
+"""
 
 # Preference summariser
 def summarise_pref(user_preference):
@@ -283,77 +431,80 @@ def about(user_id, input, output, voice_model):
 
     username, status, privacy = current_profile_info(user_id)
 
+    fallback_models = [_ for _ in models['openrouter']]
+    str_fallback_models = ''
+    for fallback_model in fallback_models[:-1]:
+        str_fallback_models = str_fallback_models +str(fallback_model) + "\n"
+
 
     message = dedent(f"""
-        ====================================================
-                            About - Solaris
-        ====================================================      
-            Version        : 1.0.1
-            Developer      : Shivansh Singh
-            Platform       : {system} {platform.release()}
-            Languages      : Python {platform.python_version()}, SQLite3 ({sqlite3.sqlite_version}) 
-            Architecture   : {platform.machine()}
-        
-        ----------------------------------------------------
-        
-        Current Profile    : {username}
-        Profile ID         : {user_id}
-        Privacy            : {"Private" if privacy == 1 else "Public"}
-        Status             : {"Active" if active == 1 else "Inactive"}
-        
-       Total Sessions      : {count_sessions(user_id)}
-       
-       -----------------------------------------------------
-       
-       Primary AI          : Gemini 2.5 Flash
-       Fallback Models
-       - GPT-OSS-120B
-       - Llama 3.3 70B
-       - Nemotron 550B
-       
-       Offline Model       : Qwen3:4B
-       
-       -----------------------------------------------------
-       
-       Input Mode          : {input_mode}
-       Speech Model        : {input_model}
-       
-       Output Mode         : {output_mode}
-       TTS Model           : {model}
-       Available Output Models:
-       - EdgeTTS
-       - KittenTTS
-       
-       -----------------------------------------------------
-       
-       Database            : SQLite3
-       
-       Profiles            : {profiles}
-       Active Profiles     : {active}
-       Private Profiles    : {private}
-       
-       -----------------------------------------------------
-       Features
+==========================================================================
+                    About - Solaris
+==========================================================================
+    Version        : 1.0.1
+    Developer      : Shivansh Singh
+    Platform       : {system} {platform.release()}
+    Languages      : Python {platform.python_version()}, SQLite3 ({sqlite3.sqlite_version}) 
+    Architecture   : {platform.machine()}
 
-        ✓ Multi-user Profiles
-        ✓ Long-term Memory
-        ✓ Voice Input
-        ✓ Voice Output
-        ✓ AI Fallback
-        ✓ Session Summaries
-        ✓ Preference Learning
-       
-       -----------------------------------------------------
-       Useful Commands
-        .HELP
-        .CHANGE
-        .VOICE
-        .RENAME
-        .CLEAR
-        .ABOUT  
-       =====================================================
-       Built with curiosity and lots of debugging.
-       =====================================================
+--------------------------------------------------------------------------
+
+Current Profile    : {username}
+Profile ID         : {user_id}
+Privacy            : {"Private" if privacy == 1 else "Public"}
+Status             : {"Active" if active == 1 else "Inactive"}
+
+Total Sessions      : {count_sessions(user_id)}
+
+--------------------------------------------------------------------------
+
+Primary AI          : Gemini 2.5 Flash
+Fallback Models ↴
+{str_fallback_models.title()}
+
+Offline Model       : {ollama_model}
+
+--------------------------------------------------------------------------
+
+Input Mode          : {input_mode}
+Speech Model        : {input_model}
+
+Output Mode         : {output_mode}
+TTS Model           : {model}
+Available Output Models:
+- EdgeTTS
+- KittenTTS
+
+--------------------------------------------------------------------------
+
+Database            : SQLite3
+
+Profiles            : {profiles}
+Active Profiles     : {active}
+Private Profiles    : {private}
+
+--------------------------------------------------------------------------
+Features
+
+✓ Multi-user Profiles
+✓ Long-term Memory
+✓ Voice Input
+✓ Voice Output
+✓ AI Fallback
+✓ Session Summaries
+✓ Preference Learning
+
+--------------------------------------------------------------------------
+Useful Commands
+.HELP
+.CHANGE
+.VOICE
+.RENAME
+.CLEAR
+.ABOUT  
+==========================================================================
+Built with curiosity and lots of debugging.
+==========================================================================
         """)
     return message
 

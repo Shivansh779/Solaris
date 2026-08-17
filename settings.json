@@ -1,0 +1,33 @@
+{
+  "response" : {
+    "maximum_length" : 8,
+    "emoji_density" : "Moderate",
+
+    "temperature" : {
+      "normal" : "",
+      "coder" : "",
+      "writer" : "",
+      "strategist" : ""
+    },
+
+    "detail": {
+      "normal" : "",
+      "coder" : "",
+      "writer" : "",
+      "strategist" : ""
+    },
+
+    "thinking_level" : {
+      "normal" : "low",
+      "coder" : "medium",
+      "writer" : "medium",
+      "strategist" : "high"
+    }
+  },
+
+  "personality" : {
+    "warmth" : "moderate",
+    "humor" : "low",
+    "creativity" : "0.9"
+  }
+}

@@ -1,0 +1,61 @@
+{
+    "gemini": "gemini-2.5-flash",
+    "openrouter": [
+        "google/gemma-4-26b-a4b-it:free",
+        "inclusionai/ling-3.0-flash:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/free"
+    ],
+    "local": "Qwen/Qwen3:4b-thinking",
+    "or_assist": "nvidia/nemotron-3-super-120b-a12b:free",
+    "specialist": {
+        "coding": {
+            "primary": {
+                "name": "qwen3.5:397b-cloud",
+                "role": "coder",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            },
+            "secondary": {
+                "name": "deepseek-v4-flash:cloud",
+                "role": "coder",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            }
+        },
+        "writing": {
+            "primary": {
+                "name": "deepseek-v4-pro:cloud",
+                "role": "writer",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            },
+            "secondary": {
+                "name": "google/gemma-4-31b-it:free",
+                "role": "writer",
+                "provider": "google",
+                "times_used": 0,
+                "times_satisfied": 0
+            }
+        },
+        "reasoning": {
+            "primary": {
+                "name": "deepseek-v4-pro:cloud",
+                "role": "strategist",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            },
+            "secondary": {
+                "name": "glm-5.2:cloud",
+                "role": "strategist",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            }
+        }
+    }
+}

@@ -2,8 +2,6 @@ import platform
 import random
 import textwrap
 import shutil
-from google import genai
-from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import sounddevice as sd
@@ -20,10 +18,13 @@ import time
 import sys
 from textwrap import dedent
 import json
+import subprocess
+from spinner import Spinner, RecordingTimer
+import config
 
 import main_db
 import history_db
-from spinner import Spinner, RecordingTimer
+import specialist_ai
 
 # Logging Function Definition
 def system_log(category, level, message):
@@ -51,31 +52,32 @@ memories = []
 fs = 16000 # sample rate, (fps of audio)
 seconds=5
 
-load_dotenv()
-system_log("SYSTEM", "INFO", "Environment configuration loaded.")
+with open("config.json", "r") as f:
+    models = json.load(f)
 
 # Gemini Set-Up
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-client_gem = genai.Client(api_key=gemini_api_key)
+client_gem = config.init_gemini()
 
-MODEL = "gemini-2.5-flash"
+MODEL = models["gemini"].lower()
 
-MODELS = ['openai/gpt-oss-120b:free', 'meta-llama/llama-3.3-70b-instruct:free',
-          'nvidia/nemotron-3-ultra-550b-a55b:free']
+# Ollama Local
+LOCAL_MODEl = models["local"].split("/")[1].lower()
 
-with open("local.json", "r") as f:
-    raw_data = json.load(f)
+# OpenRouter Set-up
+client_or = config.init_openrouter()
 
-data = raw_data["model"].split("/")[1].lower()
+MODELS = [model.lower() for model in models["openrouter"]]
 
-LOCAL_MODEl = data
+# Ollama Cloud
+client_ollama = config.init_ollama_cloud()
 
-#OpenRouter Set-up
-openrouter_api_key = os.getenv("OR_API_KEY")
-client_or = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=openrouter_api_key,
-)
+# groq
+client_groq = config.init_groq()
+
+# NVIDIA NIM
+client_nvidia = config.init_nvidia()
+
+# TODO: Dictionary mapping for client
 
 # EdgeTTS
 async def main(response):
@@ -86,7 +88,7 @@ async def main(response):
 # KittenTTS
 kitten_model = None
 
-voice_text = input("Voice (Enter V)\nText (Enter T) \nChoose input mode: ").strip().lower()
+voice_text = input("Voice (Enter V)\nText (Enter T) \nInput -> ").strip().lower()
 print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for yourself.")
 
 if voice_text == 'v':
@@ -95,7 +97,7 @@ if voice_text == 'v':
 else:
     system_log("SYSTEM", "INFO", "Text input mode selected.")
 
-ai_voice_text = input("\nVoice (Enter V)\nText (Enter T) \nChoose output mode: ").strip().lower()
+ai_voice_text = input("\nVoice (Enter V)\nText (Enter T) \nOutput -> ").strip().lower()
 print("You have chosen: " + ("Voice" if ai_voice_text == 'v' else "Text") + " for the AI.\n")
 system_log("SYSTEM", "INFO", "AI output mode selected.")
 pref = None
@@ -106,6 +108,13 @@ if ai_voice_text == 'v':
     if pref > 2 or pref < 1:
         print("Invalid choice. Restart Program!")
         sys.exit(0)
+
+print("""╭──────────────────────────────╮
+│       Solaris Profiles       │
+╰──────────────────────────────╯
+
+Profiles
+""")
 
 for user in main_db.check_existing():
     if user[2] == 1 and user[3] == 0:
@@ -118,21 +127,34 @@ for user in main_db.check_existing():
         print(f"{user[0]}: {user[1]}")
 
 existing = input("""
-Enter Number of Profile to use it, or 
-Create New Profile (Type N), or
-Update Preferences of a Profile (Type ID.update), or
-Deactivate Profile (Type ID.deactivate), or
-Activate Profile (Type ID.activate), or
-Rename (ID.rename), or
-Exit (type .exit)
-Enter your Choice: """
+Commands
+
+N               New Profile
+<ID>.update     Update
+<ID>.rename     Rename
+<ID>.activate   Activate
+<ID>.deactivate Deactivate
+/exit           Exit
+
+Profile -> """
 ).strip().lower()
 
 existing = existing.split(".")
 
+if not existing[0]:
+    print("Please enter a valid option.")
+    sys.exit()
+
 current_user_id = None
+
+# Exitting the Application
+if "/exit" in existing:
+    system_log("SYSTEM", "INFO", "Application exited from profile selection.")
+    print("Goodbye! Have a Great Day!")
+    sys.exit()
+
 # New Profile
-if existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
+elif existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
     about_user = input("Tell Solaris about yourself (prefer to keep it in 50 words): ")
@@ -195,7 +217,7 @@ elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_se
             system_log("PROFILE", "INFO", f"Private profile preferences updated for user_id={existing[0]}.")
             preference = processed_pref
             current_user_id = int(existing[0])
-            data = main_db.get_preference(existing[0])
+            data = main_db.get_data(existing[0])
             preference = data[0]
             name = data[1]
             about_user = data[2]
@@ -316,12 +338,6 @@ elif len(existing) > 1 and existing[1] == "rename":
     print("Profile Rename! Restart Application to see changes.")
     sys.exit()
 
-# Exitting the Application
-elif len(existing) > 1 and existing[1] == "exit":
-    system_log("SYSTEM", "INFO", "Application exited from profile selection.")
-    print("Goodbye! Have a Great Day!")
-    sys.exit()
-
 else:
     system_log("SYSTEM", "WARNING", "Invalid profile menu option selected.")
     print("Invalid Option Selected!")
@@ -336,40 +352,43 @@ def ai_voice_manager(pref, response):
             system_log("SYSTEM", "INFO", "EdgeTTS selected.")
         except Exception as e:
             system_log("SYSTEM", "ERROR", f"Error in EdgeTTS. {e}\nSwitched to KittenTTS!")
-            kitten_tts(response)
+            kitten_tts(response=response)
     elif pref == 2:
         kitten_tts(response=response)
         system_log("SYSTEM", "INFO", "KittenTTS selected.")
 
-def kitten_tts(kitten_model, response):
+def kitten_tts(response, kitten_model=None):
     if kitten_model is None:
-        kitten_model = "KittenML/kitten-tts-mini-0.8"
+        kitten_model = KittenTTS("KittenML/kitten-tts-mini-0.8")
     audio = kitten_model.generate(
     text=response,
     voice="Jasper",
-    clean_text=True
+    speed=1.2,
 )
     sf.write("output.wav", audio, 24000)
 
 def change_user_id(user_id):
     global current_user_id, memories, name, preference
-    data = main_db.get_preference(user_id)
+    data = main_db.get_data(user_id)
     memories = history_db.access_history(user_id)
     name = data[1]
     preference = data[0]
     current_user_id = user_id
     system_log("PROFILE", "INFO", f"Changed active profile to user_id={user_id}.")
 
-def ask_ai(prompt, models=None):
+def ask_ai(prompt, spinner, models=None):
     if models is None:
         models = MODELS
+    spinner.start()
     try:
         system_log("AI", "INFO", "Sending request to Gemini model.")
         answer = ask_gemini(prompt)
     except Exception as e:
         system_log("AI", "WARNING", f"Gemini request failed, falling back to OpenRouter: {e}")
-        print("Please wait a few seconds...")
-        answer = ask_openrouter(prompt, models=models)
+        spinner.update_message("Reasoning... ⚠️ Cloud models unavailable.")
+        answer = ask_openrouter(prompt, spinner, models)
+    finally:
+        spinner.stop()
 
     return answer
 
@@ -381,7 +400,7 @@ def ask_gemini(prompt, model=MODEL):
     )
     return response.text
 
-def ask_openrouter(prompt, models):
+def ask_openrouter(prompt, spinner, models):
     for model in models:
         try:
             system_log("AI", "INFO", f"Using OpenRouter model: {model}.")
@@ -394,10 +413,12 @@ def ask_openrouter(prompt, models):
             return response.choices[0].message.content
         except Exception as e:
             system_log("AI", "WARNING", f"OpenRouter model failed: {model}. Error: {e}")
-            print("⚠️Cloud models unavailable.\nSwitching to local AI...")
-            with Spinner(f"Running Locally..."):
-                response = ask_ollama(prompt, LOCAL_MODEl)
-            return response
+            spinner.update_message(f"Cloud model unavailable: {model} ⚠️")
+            time.sleep(0.7)
+
+        spinner.update_message("Switching to Local AI...")
+        response = ask_ollama(prompt, LOCAL_MODEl)
+        return response
 
 def ask_ollama(prompt, model):
     system_log("AI", "INFO", f"Using Ollama model: {model}")
@@ -410,6 +431,189 @@ def ask_ollama(prompt, model):
     text = response['message']['content']
     return text
 
+
+# Response Commands
+def show_help():
+    print("\nAvailable Commands" + "\n" + "─"*shutil.get_terminal_size().columns + "\n")
+    print(".CHANGE                - To Change Profiles")
+    print(".BETTER                - Get a better answer for a request. (WIP)")
+    print("exit/goodbye/bye       - To Exit")
+    print(".VOICE                 - To Change the Text-To-Speech model")
+    print(".ABOUT                 - See about the Profile and the AI Chatbot.")
+    print(".UPDATE_PRIVACY        - To Update Privacy Settings")
+    print(".CLEAR                 - Clears the terminal window. Conversation, memory, and context remain unchanged.")
+    print(".WEB                   - Allows Solaris to acces the web for information, and to answer questions that require real-time data. (WIP)")
+    print("\n" + "─"*shutil.get_terminal_size().columns + "\n")
+
+def show_about():
+    print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
+
+def change_profile():
+    temp_list = []
+    for user in main_db.check_existing():
+        print(f"{user[0]}: {user[1]}")
+        temp_list.append(user[0])
+    print("Select the profile to switch to!")
+    changed_profile = int(input("Switch to profile: "))
+    if changed_profile not in temp_list:
+        system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
+        print("Invalid Profile ID!\n\n\n")
+        raise Exception
+    elif main_db.fetch_privacy_setting(changed_profile) == 1:
+        system_log("PROFILE", "WARNING", f"Blocked mid-session switch to private profile user_id={changed_profile}.")
+        print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
+        raise Exception
+    change_user_id(changed_profile)
+    print("Changing Profile...")
+    time.sleep(1.0)
+    print("Profile Changed!")
+    print("=" * 50 + "\n")
+
+def change_voice():
+    print("1. EdgeTTS (Requires Internet, Indian Accent)\n2.KittenTTS (Offline, British Accent)")
+    pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
+    if pref > 2 or pref < 1:
+        print("Invalid Choice!")
+    else:
+        if pref == 1:
+            system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: EdgeTTs")
+        else:
+            system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: KittenTTS")
+
+def update_privacy():
+    print(f"Current Privacy Setting: {"Public" if main_db.fetch_privacy_setting(current_user_id) == 0 else "Private"}")
+    preference = input(f"Switch Privacy Setting to {"Public" if main_db.fetch_privacy_setting(current_user_id) == 1 else "Private"}? "
+          f"(Y/N) ")
+    if preference in ["Y", "y"]:
+        if main_db.fetch_privacy_setting(current_user_id) == 1:
+            attempts = 3
+            while attempts > 0:
+                password = input("Enter Password to change Privacy Settings: ")
+                if password == main_db.fetch_password(current_user_id):
+                    main_db.update_privacy(current_user_id,  0)
+                    break
+                else:
+                    attempts -= 1
+                    print(f"Invalid Password. Remaining Attempts: {attempts}")
+        else:
+            main_db.update_privacy(current_user_id, 1)
+            print("Privacy Settings Changed!")
+            print(f"Your Password is {main_db.fetch_password(current_user_id)}")
+    
+    elif preference in ['N', 'n']:
+        print("Private Settings Remain Unchanged")
+    else:
+        print("Invalid Choice")
+
+def clear():
+    print("Clearing terminal window...")
+    time.sleep(1)
+    if platform.system() == "Windows":
+        subprocess.run(["cls"])
+    else:
+        if os.getenv("TERM"):
+            subprocess.run(["clear"])
+        else:
+            print("\n" * 100)
+    print(dedent("""
+        ────────────────────────────────────────────────────
+                            Solaris
+        ────────────────────────────────────────────────────
+        
+        Screen cleared.
+        Conversation context is still active.
+        
+        Type .HELP for commands.
+        ╰───────────────────────────────────────────────────
+        """))
+
+def display(text):
+    print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(text, width=shutil.get_terminal_size().columns)}")
+
+def better(question="", clien=None, answers=""):
+    print("Who do you want to answer?")
+    print("1. ✍️ The Writer      (Writing, essays, creative content)")
+    print("2. 💻 The Programmer (Coding, debugging, software design)")
+    print("3. 🧠 The Strategist (Reasoning, planning, problem solving)")
+    choice = int(input("Your option: "))
+
+    if choice in (1, 2) and not question:
+        question = input("\nDescribe your request clearly: ").strip()
+        if not question:
+            return "No request provided. Try Again!"
+
+    clients = {
+        "openrouter" : client_or,
+        "ollama-cloud" : client_ollama,
+        "google" : client_gem,
+        "nvidia" : client_nvidia,
+        "groq" : client_groq
+    }
+
+    with open("config.json", "r") as f:
+        config = json.load(f)
+
+    match choice:
+        case 1:
+            p_client = config['specialist']['writing']['primary']['provider']
+            s_client = config['specialist']['writing']['secondary']['provider']
+            if p_client in clients and s_client in clients:
+                response = specialist_ai.writer(question, clients[p_client], clients[s_client])
+                display(response)
+                return response
+        case 2:
+            p_client = config['specialist']['coding']['primary']['provider']
+            s_client = config['specialist']['coding']['secondary']['provider']
+            if p_client in clients and s_client in clients:
+                response = specialist_ai.coder(question, clients[p_client], clients[s_client])
+                display(response)
+                return response
+        case 3:
+            p_client = config['specialist']['reasoning']['primary']['provider']
+            s_client = config['specialist']['reasoning']['secondary']['provider']
+            if p_client not in clients or s_client not in clients:
+                return "Strategist models unavailable. Check config."
+            return strategist_flow(question, clients[p_client], clients[s_client])
+        case _:
+            return "Invalid Option Selected! Try Again!"
+
+def strategist_flow(goal, p_client, s_client):
+    goal = goal.strip()
+    if not goal:
+        goal = input("Define your goal (structured, one response): ").strip()
+
+    if not goal:
+        return "No goal provided. Try again."
+
+    system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
+
+    print("\nSolaris is drafting its questions...")
+    ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
+    print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{ai_questions}")
+
+    answers = input("\nYour answers (respond to each question clearly): ").strip()
+    if not answers:
+        answers = "N/A"
+
+    system_log("AI", "INFO", "Primary strategist drafting PRD.")
+    draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers)
+    previous_draft = None
+
+    while True:
+        display(draft)
+        accept = input("\nDo you approve this design draft? (Y/N): ").strip().lower()
+        if accept in ("y", "yes"):
+            system_log("AI", "INFO", "Strategist draft approved by user.")
+            return draft
+        elif accept in ("n", "no"):
+            system_log("AI", "INFO", "Strategist draft rejected; requesting an alternative from the secondary model.")
+            print("\nSolaris is asking the secondary strategist for an alternative approach...")
+            previous_draft = draft
+            draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
+                                             previous_draft=previous_draft, force_secondary=True)
+        else:
+            print("Invalid input. Please enter Y or N.")
+            
 
 system_log("SYSTEM", "INFO", "Chat session started.")
 
@@ -438,110 +642,21 @@ while True:
     # Send to the AI
     question = transcribed_text.strip()
 
-    if ".HELP" in question:
-        print("Available Commands" + "\n" + "─"*36 + "\n")
-        print(".CHANGE - to Chaange Profiles\nprofile_number.update - To Update Preferences")
-        print(".BETTER - Get a better answer for a request.")
-        print("exit/goodbye/bye - To Exit")
-        print(".VOICE - To Change the Text-To-Speech model")
-        print(".ABOUT - See about the Profile and the AI Chatbot.")
-        print(".UPDATE_PRIVACY - To Update Privacy Settings")
-        print(".CLEAR - Clears the terminal window. Conversation, memory, and context remain unchanged.")
-        print()
-        continue
+    commands = {
+        ".HELP" : show_help,
+        ".BETTER" : better,
+        ".CHANGE" : change_profile,
+        ".VOICE" : change_voice,
+        ".ABOUT" : show_about,
+        ".UPDATE_PRIVACY" : update_privacy,
+        ".CLEAR" : clear
+    }
 
-    elif ".BETTER" in question:
-        print("Who do you want to answer?")
-        print("1. ✍️ The Writer      (Writing, essays, creative content)")
-        print("2. 💻 The Programmer (Coding, debugging, software design)")
-        print("3. 🧠 The Strategist (Reasoning, planning, problem solving)")
-        choice = int(input("Your option: "))
-
-    elif ".CHANGE" in question:
-        temp_list = []
-        for user in main_db.check_existing():
-            print(f"{user[0]}: {user[1]}")
-            temp_list.append(user[0])
-        print("Select the profile to switch to!")
-        changed_profile = int(input("Switch to profile: "))
-        if changed_profile not in temp_list:
-            system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
-            print("Invalid Profile ID!\n\n\n")
+    if question.upper() in commands:
+        try:
+            response = commands[f'{question.upper()}']()
+        except:
             continue
-        elif main_db.fetch_privacy_setting(changed_profile) == 1:
-            system_log("PROFILE", "WARNING", f"Blocked mid-session switch to private profile user_id={changed_profile}.")
-            print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
-            continue
-        change_user_id(changed_profile)
-        print("Changing Profile...")
-        time.sleep(1.0)
-        print("Profile Changed!")
-        print("=" * 50 + "\n")
-        continue
-
-    elif ".VOICE" in question:
-        print("1. EdgeTTS (Requires Internet, Indian Accent)\n2.KittenTTS (Offline, British Accent)")
-        pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
-        if pref > 2 or pref < 1:
-            print("Invalid Choice!")
-        else:
-            if pref == 1:
-                system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: EdgeTTs")
-            else:
-                system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: KittenTTS")
-        continue
-
-    elif ".ABOUT" in question:
-        print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
-        continue
-
-    elif ".UPDATE_PRIVACY" in question:
-        print(f"Current Privacy Setting: {"Public" if main_db.fetch_privacy_setting(current_user_id) == 0 else "Private"}")
-        preference = input(f"Switch Privacy Setting to {"Public" if main_db.fetch_privacy_setting(current_user_id) == 1 else "Private"}? "
-              f"(Y/N) ")
-        if preference in ["Y", "y"]:
-            if main_db.fetch_privacy_setting(current_user_id) == 1:
-                attempts = 3
-                while attempts > 0:
-                    password = input("Enter Password to change Privacy Settings: ")
-                    if password == main_db.fetch_password(current_user_id):
-                        main_db.update_privacy(current_user_id,  0)
-                        break
-                    else:
-                        attempts -= 1
-                        print("Invalid Password. Remaining Attempts: " + attempts)
-            else:
-                main_db.update_privacy(current_user_id, 1)
-                print("Privacy Settings Changed!")
-                print("Your Password is " + main_db.fetch_password(current_user_id))
-
-        elif preference in ['N', 'n']:
-            print("Private Settings Remain Unchanged")
-        else:
-            print("Invalid Choice")
-        continue
-
-    elif ".CLEAR" in question:
-        print("Clearing terminal window...")
-        time.sleep(1)
-        if platform.system() == "Windows":
-            os.system("cls")
-        else:
-            if os.getenv("TERM"):
-                os.system("clear")
-            else:
-                print("\n" * 100)
-        print(dedent("""
-        ====================================================
-                            Solaris
-        ====================================================
-        
-        Screen cleared.
-        Conversation context is still active.
-        
-        Type .HELP for commands.
-        ====================================================
-        """))
         continue
 
     # Add to current chat conv_history and session_history
@@ -601,15 +716,15 @@ while True:
             "Analyzing context...",
             "Writing reply..."
         ]
-        with Spinner(random.choice(text)):
-            response = ask_ai(prompt)
+        spinner = Spinner(random.choice(text))
+        response = ask_ai(prompt, spinner=spinner)
 
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print(f"\n╭─ 🤖 Solaris" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
+            print(f"\n╭─ 🤖 Solaris" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
         else:
-            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
+            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
         # Append AI Response to History and session_history
         conv_history.append({
             "role": "assistant",

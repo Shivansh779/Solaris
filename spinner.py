@@ -23,13 +23,15 @@ class Spinner:
         self.thread.join()
         sys.stdout.write("\r" + " " * 60 + "\r")
 
+    def update_message(self, message):
+        self.message = message
+
     def __enter__(self):
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
-
 
 
 class RecordingTimer:

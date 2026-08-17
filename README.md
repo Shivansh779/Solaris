@@ -45,13 +45,13 @@ The Important files of this project and their use cases are as follows:
 
 ---
 ## <u> Architecture </u>
-![UX Flow](UX_Flow.png)
+![UX Flow](assets/UX_Flow.png)
 
-![Program Flow](Program_flow.png)
+![Program Flow](assets/Program_flow.png)
 
-![LLM_fallback](LLM_fallback.png)
+![LLM_fallback](assets/LLM_fallback.png)
 
-![Memory and Preference](memory.png)
+![Memory and Preference](assets/memory.png)
 
 ---
 
