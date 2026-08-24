@@ -24,7 +24,7 @@ class Spinner:
         sys.stdout.write("\r" + " " * 60 + "\r")
 
     def update_message(self, message):
-        self.message = message
+        self.text = message
 
     def __enter__(self):
         self.start()

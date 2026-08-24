@@ -40,5 +40,5 @@ def init_ollama_cloud ():
     api_key = os.getenv("OLLAMA_CLOUD_API_KEY")
     return OpenAI(
         api_key=api_key,
-        base_url="https://api.ollama.com/v1"
+        base_url="https://ollama.com/v1"
     )

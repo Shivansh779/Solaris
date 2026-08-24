@@ -416,9 +416,9 @@ def ask_openrouter(prompt, spinner, models):
             spinner.update_message(f"Cloud model unavailable: {model} ⚠️")
             time.sleep(0.7)
 
-        spinner.update_message("Switching to Local AI...")
-        response = ask_ollama(prompt, LOCAL_MODEl)
-        return response
+    spinner.update_message("Switching to Local AI...")
+    response = ask_ollama(prompt, LOCAL_MODEl)
+    return response
 
 def ask_ollama(prompt, model):
     system_log("AI", "INFO", f"Using Ollama model: {model}")
@@ -436,19 +436,20 @@ def ask_ollama(prompt, model):
 def show_help():
     print("\nAvailable Commands" + "\n" + "─"*shutil.get_terminal_size().columns + "\n")
     print(".CHANGE                - To Change Profiles")
-    print(".BETTER                - Get a better answer for a request. (WIP)")
+    print(".BETTER                - Get a better answer for a request.")
     print("exit/goodbye/bye       - To Exit")
     print(".VOICE                 - To Change the Text-To-Speech model")
     print(".ABOUT                 - See about the Profile and the AI Chatbot.")
     print(".UPDATE_PRIVACY        - To Update Privacy Settings")
     print(".CLEAR                 - Clears the terminal window. Conversation, memory, and context remain unchanged.")
-    print(".WEB                   - Allows Solaris to acces the web for information, and to answer questions that require real-time data. (WIP)")
+    print(".WEB <question>        - Search the web for real-time information (coming soon).")
     print("\n" + "─"*shutil.get_terminal_size().columns + "\n")
 
 def show_about():
     print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
 
 def change_profile():
+    global conv_history, session_history, imp_conv_history
     temp_list = []
     for user in main_db.check_existing():
         print(f"{user[0]}: {user[1]}")
@@ -464,12 +465,16 @@ def change_profile():
         print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
         raise Exception
     change_user_id(changed_profile)
+    conv_history.clear()
+    session_history.clear()
+    imp_conv_history.clear()
     print("Changing Profile...")
     time.sleep(1.0)
     print("Profile Changed!")
     print("=" * 50 + "\n")
 
 def change_voice():
+    global pref
     print("1. EdgeTTS (Requires Internet, Indian Accent)\n2.KittenTTS (Offline, British Accent)")
     pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
     if pref > 2 or pref < 1:
@@ -509,7 +514,7 @@ def clear():
     print("Clearing terminal window...")
     time.sleep(1)
     if platform.system() == "Windows":
-        subprocess.run(["cls"])
+        subprocess.run("cls", shell=True)
     else:
         if os.getenv("TERM"):
             subprocess.run(["clear"])
@@ -527,8 +532,21 @@ def clear():
         ╰───────────────────────────────────────────────────
         """))
 
+def handle_web(question):
+    print("Web search is coming soon! This feature is under development.")
+    system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
+
 def display(text):
     print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(text, width=shutil.get_terminal_size().columns)}")
+
+def specialist_spinner():
+    return Spinner(random.choice([
+        "Consulting the specialist...",
+        "Fetching expert insight...",
+        "Summoning domain knowledge...",
+        "Analyzing with precision...",
+        "Crafting specialist response..."
+    ]))
 
 def better(question="", clien=None, answers=""):
     print("Who do you want to answer?")
@@ -558,14 +576,16 @@ def better(question="", clien=None, answers=""):
             p_client = config['specialist']['writing']['primary']['provider']
             s_client = config['specialist']['writing']['secondary']['provider']
             if p_client in clients and s_client in clients:
-                response = specialist_ai.writer(question, clients[p_client], clients[s_client])
+                with specialist_spinner():
+                    response = specialist_ai.writer(question, clients[p_client], clients[s_client])
                 display(response)
                 return response
         case 2:
             p_client = config['specialist']['coding']['primary']['provider']
             s_client = config['specialist']['coding']['secondary']['provider']
             if p_client in clients and s_client in clients:
-                response = specialist_ai.coder(question, clients[p_client], clients[s_client])
+                with specialist_spinner():
+                    response = specialist_ai.coder(question, clients[p_client], clients[s_client])
                 display(response)
                 return response
         case 3:
@@ -588,7 +608,8 @@ def strategist_flow(goal, p_client, s_client):
     system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
 
     print("\nSolaris is drafting its questions...")
-    ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
+    with specialist_spinner():
+        ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
     print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{ai_questions}")
 
     answers = input("\nYour answers (respond to each question clearly): ").strip()
@@ -596,7 +617,8 @@ def strategist_flow(goal, p_client, s_client):
         answers = "N/A"
 
     system_log("AI", "INFO", "Primary strategist drafting PRD.")
-    draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers)
+    with specialist_spinner():
+        draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers)
     previous_draft = None
 
     while True:
@@ -609,8 +631,9 @@ def strategist_flow(goal, p_client, s_client):
             system_log("AI", "INFO", "Strategist draft rejected; requesting an alternative from the secondary model.")
             print("\nSolaris is asking the secondary strategist for an alternative approach...")
             previous_draft = draft
-            draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
-                                             previous_draft=previous_draft, force_secondary=True)
+            with specialist_spinner():
+                draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
+                                                 previous_draft=previous_draft, force_secondary=True)
         else:
             print("Invalid input. Please enter Y or N.")
             
@@ -649,13 +672,15 @@ while True:
         ".VOICE" : change_voice,
         ".ABOUT" : show_about,
         ".UPDATE_PRIVACY" : update_privacy,
-        ".CLEAR" : clear
+        ".CLEAR" : clear,
+        ".WEB" : handle_web
     }
 
     if question.upper() in commands:
         try:
             response = commands[f'{question.upper()}']()
-        except:
+        except Exception as e:
+            system_log("COMMAND", "ERROR", f"Command '{question}' failed: {e}")
             continue
         continue
 
@@ -692,7 +717,7 @@ while True:
     temp_question = _.split()
     exit_commands = ['exit', 'quit', 'close', 'bye', 'goodbye']
 
-    if  any(item in temp_question for item in exit_commands):
+    if _ in exit_commands:
         response = "Goodbye! Have a great day ahead!"
         system_log("SYSTEM", "INFO", f"Shutdown requested by user_id={current_user_id}.")
         if ai_voice_text == 'v':
