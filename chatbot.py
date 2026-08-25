@@ -162,8 +162,6 @@ elif existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     if privacy_setting == "Y"  or privacy_setting == "y":
         is_private = 1
         print("Your Profile is Private.")
-        print(f"Your Profile Password: {main_db.password}\nKindly Save your Password to access your"
-              f"profile in future!")
     else:
         is_private = 0
         print("Your Profile is Public")
@@ -173,6 +171,8 @@ elif existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     system_log("PROFILE", "INFO", f"Created new profile with user_id={current_user_id}.")
     preference = processed_pref
     about_user = processed_about
+    if is_private == 1:
+        print(f"Your Profile Password: {main_db.fetch_password(current_user_id)}\nKindly Save your Password to access your profile in future!")
 
 # Private Profiles
 elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
@@ -442,7 +442,9 @@ def show_help():
     print(".ABOUT                 - See about the Profile and the AI Chatbot.")
     print(".UPDATE_PRIVACY        - To Update Privacy Settings")
     print(".CLEAR                 - Clears the terminal window. Conversation, memory, and context remain unchanged.")
-    print(".WEB <question>        - Search the web for real-time information (coming soon).")
+    print(".WEB <question>        - Search the web for real-time information (Upcoming~)")
+    print("\nNote: Profile management (update, rename, activate, deactivate)")
+    print("      is available only at application startup.")
     print("\n" + "─"*shutil.get_terminal_size().columns + "\n")
 
 def show_about():
@@ -455,15 +457,20 @@ def change_profile():
         print(f"{user[0]}: {user[1]}")
         temp_list.append(user[0])
     print("Select the profile to switch to!")
-    changed_profile = int(input("Switch to profile: "))
+    try:
+        changed_profile = int(input("Switch to profile: "))
+    except ValueError:
+        system_log("PROFILE", "WARNING", "Invalid profile switch input (non-numeric).")
+        print("Invalid Profile ID!")
+        return
     if changed_profile not in temp_list:
         system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
-        print("Invalid Profile ID!\n\n\n")
-        raise Exception
+        print("Invalid Profile ID!")
+        return
     elif main_db.fetch_privacy_setting(changed_profile) == 1:
         system_log("PROFILE", "WARNING", f"Blocked mid-session switch to private profile user_id={changed_profile}.")
         print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
-        raise Exception
+        return
     change_user_id(changed_profile)
     conv_history.clear()
     session_history.clear()
@@ -476,7 +483,11 @@ def change_profile():
 def change_voice():
     global pref
     print("1. EdgeTTS (Requires Internet, Indian Accent)\n2.KittenTTS (Offline, British Accent)")
-    pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
+    try:
+        pref = int(input("Enter Your Preferred Text-To-Speech Model: "))
+    except ValueError:
+        print("Invalid Choice!")
+        return
     if pref > 2 or pref < 1:
         print("Invalid Choice!")
     else:
@@ -532,9 +543,10 @@ def clear():
         ╰───────────────────────────────────────────────────
         """))
 
-def handle_web(question):
-    print("Web search is coming soon! This feature is under development.")
-    system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
+def handle_web(question=""):
+    print("Upcoming~")
+    if question:
+        system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
 
 def display(text):
     print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(text, width=shutil.get_terminal_size().columns)}")
@@ -673,8 +685,16 @@ while True:
         ".ABOUT" : show_about,
         ".UPDATE_PRIVACY" : update_privacy,
         ".CLEAR" : clear,
-        ".WEB" : handle_web
     }
+
+    # Handle .WEB command with optional question
+    if question.upper().startswith(".WEB"):
+        try:
+            web_question = question[4:].strip() if len(question) > 4 else ""
+            handle_web(web_question)
+        except Exception as e:
+            system_log("COMMAND", "ERROR", f"Command '{question}' failed: {e}")
+        continue
 
     if question.upper() in commands:
         try:
@@ -713,7 +733,7 @@ while True:
         print("No speech detected.")
         continue
 
-    _ = question.lower().strip('?!.')
+    _ = question.lower().strip(' ?!.')
     temp_question = _.split()
     exit_commands = ['exit', 'quit', 'close', 'bye', 'goodbye']
 

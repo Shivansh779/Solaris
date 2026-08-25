@@ -302,17 +302,22 @@ Conversation:
         return text
     except Exception as e:
         system_log("AI", "WARNING", f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")
-        response = ollama.chat(
-            model=ollama_model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        text = response['message']['content']
-        if "...done thinking" in text:
-            text = text.replace("...done thinking", "")
-        system_log("AI", "INFO", "Long-term session summarization completed with Ollama.")
-        return text
+        try:
+            response = ollama.chat(
+                model=ollama_model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            text = response['message']['content']
+            if "...done thinking" in text:
+                text = text.replace("...done thinking", "")
+            system_log("AI", "INFO", "Long-term session summarization completed with Ollama.")
+            return text
+        except Exception as e2:
+            system_log("AI", "ERROR", f"Long-term session summarization failed on Ollama fallback: {e2}")
+            print("Summary was not able to generate, the context of this session may be lost.")
+            return "N/A"
 
 
 def current_chat_summariser (conv_history):
@@ -347,17 +352,22 @@ Conversation:
         return text
     except Exception as e:
         system_log("AI", "WARNING", f"Current chat summarization failed on OpenRouter; falling back to Ollama: {e}")
-        response = ollama.chat(
-            model=ollama_model,
-            messages=[
-                {"role":"user", "content":prompt}
-            ]
-        )
-        text = response['message']['content']
-        if "...done thinking" in text:
-            text = text.replace("...done thinking", "")
-        system_log("AI", "INFO", "Current chat summarization completed with Ollama.")
-        return text
+        try:
+            response = ollama.chat(
+                model=ollama_model,
+                messages=[
+                    {"role":"user", "content":prompt}
+                ]
+            )
+            text = response['message']['content']
+            if "...done thinking" in text:
+                text = text.replace("...done thinking", "")
+            system_log("AI", "INFO", "Current chat summarization completed with Ollama.")
+            return text
+        except Exception as e2:
+            system_log("AI", "ERROR", f"Current chat summarization failed on Ollama fallback: {e2}")
+            print("Summary was not able to generate, the context of this session may be lost.")
+            return "N/A"
 
 def count_sessions (user_id):
     conn = sqlite3.connect("database.db")
@@ -452,7 +462,7 @@ def about(user_id, input, output, voice_model):
 Current Profile    : {username}
 Profile ID         : {user_id}
 Privacy            : {"Private" if privacy == 1 else "Public"}
-Status             : {"Active" if active == 1 else "Inactive"}
+Status             : {"Active" if status == 1 else "Inactive"}
 
 Total Sessions      : {count_sessions(user_id)}
 
@@ -542,15 +552,20 @@ Conversation:
         return text
     except Exception as e:
         system_log("AI", "WARNING",
-                   f"Long-term session summarization failed on OpenRouter; falling back to Ollama: {e}")
-        response = ollama.chat(
-            model=ollama_model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ]
-        )
-        text = response['message']['content']
-        if "...done thinking" in text:
-            text = text.replace("...done thinking", "")
-        system_log("AI", "INFO", "User detail summarization completed with Ollama.")
-        return text
+                   f"User detail summarization failed on OpenRouter; falling back to Ollama: {e}")
+        try:
+            response = ollama.chat(
+                model=ollama_model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            text = response['message']['content']
+            if "...done thinking" in text:
+                text = text.replace("...done thinking", "")
+            system_log("AI", "INFO", "User detail summarization completed with Ollama.")
+            return text
+        except Exception as e2:
+            system_log("AI", "ERROR", f"User detail summarization failed on Ollama fallback: {e2}")
+            print("Summary was not able to generate, the context of this session may be lost.")
+            return "N/A"

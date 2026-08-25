@@ -106,8 +106,6 @@ def generate_numeric_password(length=8):
     password = ''.join(secrets.choice(digits) for _ in range(length))
     return str(password)
 
-password = generate_numeric_password()
-
 def fetch_privacy_setting (user_id):
     conn = get_conn()
     cursor = conn.cursor()
@@ -169,10 +167,11 @@ def new_user (name, preference, is_private, about_user):
     conn = get_conn()
     cursor = conn.cursor()
     if is_private == 1:
+        pwd = generate_numeric_password()
         cursor.execute(
             """
                 INSERT INTO user_data (name, prefers, is_private, password, about_user) VALUES(?, ?, ?, ?, ?);
-            """, (name, preference, is_private, password, about_user)
+            """, (name, preference, is_private, pwd, about_user)
         )
     else:
         cursor.execute(
@@ -205,13 +204,14 @@ def update_privacy (user_id, privacy):
     cursor = conn.cursor()
     if privacy == 0:
         cursor.execute("""
-            UPDATE user_data SET is_private = ? WHERE user_id = ?;
+            UPDATE user_data SET is_private = ?, password = NULL WHERE user_id = ?;
         """, (privacy, user_id)
         )
     else:
+        pwd = generate_numeric_password()
         cursor.execute("""
             UPDATE user_data SET is_private = ?, password = ? WHERE user_id = ?;
-        """, (privacy, password, user_id)
+        """, (privacy, pwd, user_id)
         )
     conn.commit()
     system_log("DATABASE", "INFO", f"Updated privacy settings for user_id={user_id}.")

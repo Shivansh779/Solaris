@@ -9,6 +9,9 @@ venv/
 __pycache__/
 *.pyc
 
+# Cache
+.cache/
+
 # macOS
 .DS_Store
 
