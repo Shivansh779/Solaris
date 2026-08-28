@@ -88,6 +88,14 @@ async def main(response):
 # KittenTTS
 kitten_model = None
 
+if platform.system() == "Windows":
+    subprocess.run(["cls"], shell=True)
+else:
+    if os.getenv("TERM"):
+        subprocess.run(["clear"])
+    else:
+        print("\n" * 100)
+
 voice_text = input("Voice (Enter V)\nText (Enter T) \nInput -> ").strip().lower()
 print("You have chosen: " + ("Voice" if voice_text == 'v' else "Text") + " for yourself.")
 
