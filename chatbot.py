@@ -451,6 +451,7 @@ def show_help():
     print(".UPDATE_PRIVACY        - To Update Privacy Settings")
     print(".CLEAR                 - Clears the terminal window. Conversation, memory, and context remain unchanged.")
     print(".WEB <question>        - Search the web for real-time information (Upcoming~)")
+    print("Response Commands     - Type /Command to get a specific response from the AI. (WIP).")
     print("\nNote: Profile management (update, rename, activate, deactivate)")
     print("      is available only at application startup.")
     print("\n" + "─"*shutil.get_terminal_size().columns + "\n")
