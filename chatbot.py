@@ -91,7 +91,7 @@ kitten_model = None
 if platform.system() == "Windows":
     subprocess.run(["cls"], shell=True)
 else:
-    if os.getenv("TERM"):
+    if platform.system() == "Linux" or platform.system() == "Darwin":
         subprocess.run(["clear"])
     else:
         print("\n" * 100)
