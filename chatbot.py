@@ -767,7 +767,7 @@ while True:
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print(f"\n╭─ 🤖 Solaris" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
+            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
         else:
             print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
         # Append AI Response to History and session_history
