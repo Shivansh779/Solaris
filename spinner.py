@@ -21,7 +21,10 @@ class Spinner:
     def stop(self):
         self.running = False
         self.thread.join()
-        sys.stdout.write("\r" + " " * 60 + "\r")
+        # Clear the entire line dynamically based on text length
+        clear_length = len(self.text) + 4  # spinner char + space + text
+        sys.stdout.write("\r" + " " * clear_length + "\r")
+        sys.stdout.flush()
 
     def update_message(self, message):
         self.text = message
@@ -58,6 +61,7 @@ class RecordingTimer:
     def stop(self):
         self.running = False
         self.thread.join()
+        # Clear the entire line dynamically
         sys.stdout.write("\r" + " " * 80 + "\r")
         sys.stdout.flush()
 

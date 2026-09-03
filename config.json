@@ -11,14 +11,14 @@
     "specialist": {
         "coding": {
             "primary": {
-                "name": "gpt-oss:120b",
+                "name": "kimi-k2.7-code",
                 "role": "coder",
                 "provider": "ollama-cloud",
                 "times_used": 0,
                 "times_satisfied": 0
             },
             "secondary": {
-                "name": "gpt-oss:20b",
+                "name": "gpt-oss:120b",
                 "role": "coder",
                 "provider": "ollama-cloud",
                 "times_used": 0,
@@ -27,7 +27,7 @@
         },
         "writing": {
             "primary": {
-                "name": "minimax-m3",
+                "name": "gpt-oss:20b",
                 "role": "writer",
                 "provider": "ollama-cloud",
                 "times_used": 0,
@@ -43,7 +43,7 @@
         },
         "reasoning": {
             "primary": {
-                "name": "nemotron-3-ultra",
+                "name": "qwen3.5:397b",
                 "role": "strategist",
                 "provider": "ollama-cloud",
                 "times_used": 0,
