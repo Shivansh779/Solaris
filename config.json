@@ -56,6 +56,22 @@
                 "times_used": 0,
                 "times_satisfied": 0
             }
+        },
+        "study": {
+            "primary": {
+                "name": "nemotron-3-ultra",
+                "role": "study",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            },
+            "secondary": {
+                "name": "nemotron-3-super",
+                "role": "study",
+                "provider": "ollama-cloud",
+                "times_used": 0,
+                "times_satisfied": 0
+            }
         }
     }
 }
