@@ -11,7 +11,7 @@ from faster_whisper import WhisperModel
 import asyncio
 import edge_tts
 from kittentts import KittenTTS
-from playsound3 import playsoundq
+from playsound3 import playsound
 from datetime import datetime
 import ollama
 import time
