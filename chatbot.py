@@ -571,9 +571,6 @@ def handle_web(question=""):
     if question:
         system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
 
-def display(text):
-    tui_utils.display(text)
-
 def specialist_spinner():
     return Spinner(random.choice([
         "Consulting the specialist...",
@@ -584,14 +581,19 @@ def specialist_spinner():
     ]))
 
 def better(question="", clien=None, answers=""):
-    print("Who do you want to answer?")
-    print("1. ✍️ The Writer      (Writing, essays, creative content)")
-    print("2. 💻 The Programmer (Coding, debugging, software design)")
-    print("3. 🧠 The Strategist (Reasoning, planning, problem solving)")
-    choice = int(input("Your option: "))
+    tui_utils.display_table(
+        ["#", "Specialist", "Expertise"],
+        [
+            ("1", "✍️  The Writer", "Writing, essays, creative content"),
+            ("2", "💻 The Programmer", "Coding, debugging, software design"),
+            ("3", "🧠 The Strategist", "Reasoning, planning, problem solving"),
+        ],
+        title="Who do you want to answer?",
+    )
+    choice = int(tui_utils.prompt_box("Your Option"))
 
     if choice in (1, 2) and not question:
-        question = input("\nDescribe your request clearly: ").strip()
+        question = tui_utils.prompt_box("Your Request", "Describe your request clearly:").strip()
         if not question:
             return "No request provided. Try Again!"
 
@@ -613,7 +615,7 @@ def better(question="", clien=None, answers=""):
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
                     response = specialist_ai.writer(question, clients[p_client], clients[s_client])
-                display(response)
+                tui_utils.display_markdown(response, title="✍️ The Writer")
                 return response
         case 2:
             p_client = config['specialist']['coding']['primary']['provider']
@@ -621,7 +623,7 @@ def better(question="", clien=None, answers=""):
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
                     response = specialist_ai.coder(question, clients[p_client], clients[s_client])
-                display(response)
+                tui_utils.display_markdown(response, title="💻 The Programmer")
                 return response
         case 3:
             p_client = config['specialist']['reasoning']['primary']['provider']
@@ -645,9 +647,9 @@ def strategist_flow(goal, p_client, s_client):
     print("\nSolaris is drafting its questions...")
     with specialist_spinner():
         ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
-    print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{ai_questions}")
+    tui_utils.display_markdown(ai_questions, title="🤖 Solaris Questions")
 
-    answers = input("\nYour answers (respond to each question clearly): ").strip()
+    answers = tui_utils.prompt_box("Your Answers", "Respond to each question clearly:").strip()
     if not answers:
         answers = "N/A"
 
@@ -657,7 +659,7 @@ def strategist_flow(goal, p_client, s_client):
     previous_draft = None
 
     while True:
-        display(draft)
+        tui_utils.display_markdown(draft, title="Design Draft")
         accept = input("\nDo you approve this design draft? (Y/N): ").strip().lower()
         if accept in ("y", "yes"):
             system_log("AI", "INFO", "Strategist draft approved by user.")
@@ -695,7 +697,7 @@ while True:
         transcribed_text = ""
         transcribed_text = "".join(segment.text for segment in segments).strip()
     elif voice_text == 't':
-        transcribed_text = input(f"\n╭─ 👤 {name}" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + "\n")
+        transcribed_text = tui_utils.prompt_box(f"👤 {name}")
 
     # Send to the AI
     question = transcribed_text.strip()
@@ -776,17 +778,17 @@ while True:
             continue
 
         if study_mode == "quiz":
-            tui_utils.display(response, title=f"Quiz: {topic}")
+            tui_utils.display_markdown(response, title=f"Quiz: {topic}")
         elif study_mode == "compare":
-            tui_utils.display(response, title=f"Comparison: {topic}")
+            tui_utils.display_markdown(response, title=f"Comparison: {topic}")
         elif study_mode == "timeline":
-            tui_utils.display(response, title=f"Timeline: {topic}")
+            tui_utils.display_markdown(response, title=f"Timeline: {topic}")
         elif study_mode == "detail":
-            tui_utils.display(response, title=f"Detailed Explanation: {topic}")
+            tui_utils.display_markdown(response, title=f"Detailed Explanation: {topic}")
         elif study_mode == "simple":
-            tui_utils.display(response, title=f"Simple Explanation: {topic}")
+            tui_utils.display_markdown(response, title=f"Simple Explanation: {topic}")
         elif study_mode == "steps":
-            tui_utils.display(response, title=f"Steps: {topic}")
+            tui_utils.display_markdown(response, title=f"Steps: {topic}")
         continue
 
     # Add to current chat conv_history and session_history
@@ -850,7 +852,7 @@ while True:
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-        tui_utils.display(response)
+        tui_utils.display_markdown(response)
         # Append AI Response to History and session_history
         conv_history.append({
             "role": "assistant",
