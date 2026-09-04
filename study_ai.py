@@ -1,6 +1,16 @@
+from datetime import datetime
 import json
-import helper_ai
-import config
+
+
+# Logging Function Definition
+def system_log(category, level, message):
+    with open("System_Logs.txt", "a") as f:
+        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+
+
+# Current Time Function
+def current_time():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def build_detail_prompt(topic):
@@ -87,21 +97,6 @@ Topic: {topic}
 """
 
 
-def build_quiz_answers_prompt(topic):
-    return f"""You are a quiz master providing the answer key for a quiz about {topic}. Below are the questions the student was given. Provide the correct answer for each question along with a brief explanation.
-
-Format each answer as:
-Q{{N}}: [Correct Letter] — [Brief explanation of why this is correct and why the other options are wrong]
-
-Be thorough in explanations — the student should learn from their mistakes.
-
-Questions (do not change these, just provide answers for each):
-[questions will be provided separately]
-
-Generate the complete answer key with explanations for all 10 questions.
-"""
-
-
 def build_timeline_prompt(topic):
     return f"""You are a historian organizing events chronologically. Present the key events related to the following topic in strict chronological order.
 
@@ -177,6 +172,8 @@ Topic: {topic}
 
 
 def study(topic, p_client, s_client, mode):
+    system_log("AI", "INFO", f"Starting study request: mode={mode}, topic={topic}")
+
     with open("config.json", "r") as f:
         config_data = json.load(f)
 
@@ -189,7 +186,6 @@ def study(topic, p_client, s_client, mode):
         "detail": build_detail_prompt(topic),
         "simple": build_simple_prompt(topic),
         "quiz": build_quiz_prompt(topic),
-        "quiz_answers": build_quiz_answers_prompt(topic),
         "timeline": build_timeline_prompt(topic),
         "compare": build_compare_prompt(topic),
         "steps": build_steps_prompt(topic),
@@ -209,62 +205,14 @@ def study(topic, p_client, s_client, mode):
             return response.choices[0].message.content
 
     try:
+        system_log("AI", "INFO", f"Primary model being used for study: {primary_model}. Provider: {primary_provider}")
         response = call(p_client, primary_provider, primary_model, "primary")
         return response
     except Exception as e:
+        system_log("AI", "ERROR", f"Primary model failed for study. Error: {str(e)}. Switching to secondary model: {secondary_model}. Provider: {secondary_provider}")
         try:
             response = call(s_client, secondary_provider, secondary_model, "secondary")
             return response
         except Exception as e2:
+            system_log("AI", "ERROR", f"Secondary model also failed for study. Error: {str(e2)}")
             return "Both models failed to generate a response for this study request."
-
-
-def score_quiz(questions_text, answers_text):
-    details = []
-    score = 0
-    total = 10
-
-    for i in range(1, total + 1):
-        detail = {
-            "q": i,
-            "correct": False,
-            "user_answer": "",
-            "correct_answer": "",
-            "explanation": "",
-        }
-        details.append(detail)
-
-    summary_lines = []
-    summary_lines.append(f"[bold bright_cyan]Score: {score}/{total}[/]")
-    percentage = 0.0
-    summary_lines.append(
-        f"[bold bright_red]Percentage: {percentage}%[/]"
-    )
-
-    grade = "F"
-    summary_lines.append(f"[bold]Grade: {grade}[/]")
-    summary_lines.append("")
-    summary_lines.append("[bold]Answer Key:[/]")
-    summary_lines.append(answers_text)
-
-    return {
-        "score": score,
-        "total": total,
-        "percentage": percentage,
-        "grade": grade,
-        "details": details,
-        "answer_key": answers_text,
-    }
-
-
-def parse_quiz_answers(answers_text, questions_text):
-    lines = answers_text.strip().split("\n")
-    parsed = {}
-    for line in lines:
-        line = line.strip()
-        if line.startswith("Q") and ":" in line:
-            parts = line.split(":", 1)
-            q_num = parts[0].replace("Q", "").strip()
-            answer_part = parts[1].strip()
-            parsed[q_num] = answer_part
-    return parsed
