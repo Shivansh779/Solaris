@@ -25,6 +25,8 @@ import config
 import main_db
 import history_db
 import specialist_ai
+import study_ai
+import tui_utils
 
 # Logging Function Definition
 def system_log(category, level, message):
@@ -442,18 +444,31 @@ def ask_ollama(prompt, model):
 
 # Response Commands
 def show_help():
-    print("\nAvailable Commands" + "\n" + "─"*shutil.get_terminal_size().columns + "\n")
-    print(".CHANGE                - To Change Profiles")
-    print(".BETTER                - Get a better answer for a request.")
-    print("exit/goodbye/bye       - To Exit")
-    print(".VOICE                 - To Change the Text-To-Speech model")
-    print(".ABOUT                 - See about the Profile and the AI Chatbot.")
-    print(".UPDATE_PRIVACY        - To Update Privacy Settings")
-    print(".CLEAR                 - Clears the terminal window. Conversation, memory, and context remain unchanged.")
-    print(".WEB <question>        - Search the web for real-time information (Upcoming~)")
-    print("\nNote: Profile management (update, rename, activate, deactivate)")
-    print("      is available only at application startup.")
-    print("\n" + "─"*shutil.get_terminal_size().columns + "\n")
+    tui_utils.display_inline("\n[bold bright_cyan]Available Commands[/]\n")
+    tui_utils.display_inline("─" * shutil.get_terminal_size().columns + "\n")
+    tui_utils.display_inline("\n[bold]General Commands:[/]")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("  .CHANGE                - To Change Profiles")
+    tui_utils.display_inline("  .BETTER                - Get a better answer for a request.")
+    tui_utils.display_inline("  .VOICE                 - To Change the Text-To-Speech model")
+    tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
+    tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
+    tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
+    tui_utils.display_inline("  .WEB <question>        - Search the web for real-time information.")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("\n[bold]Study Commands:[/]")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("  .DETAIL <topic>        - Explain a concept like a teacher.")
+    tui_utils.display_inline("  .SIMPLE <topic>        - Explain a concept in simple language.")
+    tui_utils.display_inline("  .QUIZ <topic>          - Generate a 10-question quiz with answers.")
+    tui_utils.display_inline("  .TIMELINE <topic>      - Show events in chronological order.")
+    tui_utils.display_inline("  .COMPARE <topic>       - Compare subjects side by side.")
+    tui_utils.display_inline("  .STEPS <topic>         - Show a series of steps with explanations.")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("  exit/goodbye/bye       - To Exit")
+    tui_utils.display_inline("\nNote: Profile management (update, rename, activate, deactivate)")
+    tui_utils.display_inline("      is available only at application startup.")
+    tui_utils.display_inline("─" * shutil.get_terminal_size().columns + "\n")
 
 def show_about():
     print(helper_ai.about(current_user_id, voice_text, ai_voice_text, pref))
@@ -556,9 +571,6 @@ def handle_web(question=""):
     if question:
         system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
 
-def display(text):
-    print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(text, width=shutil.get_terminal_size().columns)}")
-
 def specialist_spinner():
     return Spinner(random.choice([
         "Consulting the specialist...",
@@ -569,14 +581,19 @@ def specialist_spinner():
     ]))
 
 def better(question="", clien=None, answers=""):
-    print("Who do you want to answer?")
-    print("1. ✍️ The Writer      (Writing, essays, creative content)")
-    print("2. 💻 The Programmer (Coding, debugging, software design)")
-    print("3. 🧠 The Strategist (Reasoning, planning, problem solving)")
-    choice = int(input("Your option: "))
+    tui_utils.display_table(
+        ["#", "Specialist", "Expertise"],
+        [
+            ("1", "✍️  The Writer", "Writing, essays, creative content"),
+            ("2", "💻 The Programmer", "Coding, debugging, software design"),
+            ("3", "🧠 The Strategist", "Reasoning, planning, problem solving"),
+        ],
+        title="Who do you want to answer?",
+    )
+    choice = int(tui_utils.prompt_box("Your Option"))
 
     if choice in (1, 2) and not question:
-        question = input("\nDescribe your request clearly: ").strip()
+        question = tui_utils.prompt_box("Your Request", "Describe your request clearly:").strip()
         if not question:
             return "No request provided. Try Again!"
 
@@ -598,7 +615,7 @@ def better(question="", clien=None, answers=""):
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
                     response = specialist_ai.writer(question, clients[p_client], clients[s_client])
-                display(response)
+                tui_utils.display_markdown(response, title="✍️ The Writer")
                 return response
         case 2:
             p_client = config['specialist']['coding']['primary']['provider']
@@ -606,7 +623,7 @@ def better(question="", clien=None, answers=""):
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
                     response = specialist_ai.coder(question, clients[p_client], clients[s_client])
-                display(response)
+                tui_utils.display_markdown(response, title="💻 The Programmer")
                 return response
         case 3:
             p_client = config['specialist']['reasoning']['primary']['provider']
@@ -630,9 +647,9 @@ def strategist_flow(goal, p_client, s_client):
     print("\nSolaris is drafting its questions...")
     with specialist_spinner():
         ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
-    print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{ai_questions}")
+    tui_utils.display_markdown(ai_questions, title="🤖 Solaris Questions")
 
-    answers = input("\nYour answers (respond to each question clearly): ").strip()
+    answers = tui_utils.prompt_box("Your Answers", "Respond to each question clearly:").strip()
     if not answers:
         answers = "N/A"
 
@@ -642,7 +659,7 @@ def strategist_flow(goal, p_client, s_client):
     previous_draft = None
 
     while True:
-        display(draft)
+        tui_utils.display_markdown(draft, title="Design Draft")
         accept = input("\nDo you approve this design draft? (Y/N): ").strip().lower()
         if accept in ("y", "yes"):
             system_log("AI", "INFO", "Strategist draft approved by user.")
@@ -680,7 +697,7 @@ while True:
         transcribed_text = ""
         transcribed_text = "".join(segment.text for segment in segments).strip()
     elif voice_text == 't':
-        transcribed_text = input(f"\n╭─ 👤 {name}" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + "\n")
+        transcribed_text = tui_utils.prompt_box(f"👤 {name}")
 
     # Send to the AI
     question = transcribed_text.strip()
@@ -710,6 +727,68 @@ while True:
         except Exception as e:
             system_log("COMMAND", "ERROR", f"Command '{question}' failed: {e}")
             continue
+        continue
+
+    study_commands = {
+        ".DETAIL": "detail",
+        ".SIMPLE": "simple",
+        ".QUIZ": "quiz",
+        ".TIMELINE": "timeline",
+        ".COMPARE": "compare",
+        ".STEPS": "steps",
+    }
+
+    study_mode = None
+    for cmd, mode in study_commands.items():
+        if question.upper().startswith(cmd):
+            study_mode = mode
+            break
+
+    if study_mode:
+        topic = question[len(f".{study_mode.upper()}"):].strip()
+        if not topic:
+            tui_utils.display_inline("[yellow]Please provide a topic. Example: .QUIZ photosynthesis[/]")
+            continue
+
+        clients = {
+            "openrouter": client_or,
+            "ollama-cloud": client_ollama,
+            "google": client_gem,
+            "nvidia": client_nvidia,
+            "groq": client_groq,
+        }
+
+        config_data = json.load(open("config.json"))
+        p_provider = config_data["specialist"]["study"]["primary"]["provider"]
+        s_provider = config_data["specialist"]["study"]["secondary"]["provider"]
+
+        p_client = clients.get(p_provider)
+        s_client = clients.get(s_provider)
+
+        if not p_client or not s_client:
+            tui_utils.display("Study models are unavailable. Check your config.", title="Error")
+            continue
+
+        try:
+            with specialist_spinner():
+                response = study_ai.study(topic, p_client, s_client, study_mode)
+        except Exception as e:
+            system_log("COMMAND", "ERROR", f"Study command '{study_mode}' failed: {e}")
+            tui_utils.display("Both models failed to generate a response.", title="Error")
+            continue
+
+        if study_mode == "quiz":
+            tui_utils.display_markdown(response, title=f"Quiz: {topic}")
+        elif study_mode == "compare":
+            tui_utils.display_markdown(response, title=f"Comparison: {topic}")
+        elif study_mode == "timeline":
+            tui_utils.display_markdown(response, title=f"Timeline: {topic}")
+        elif study_mode == "detail":
+            tui_utils.display_markdown(response, title=f"Detailed Explanation: {topic}")
+        elif study_mode == "simple":
+            tui_utils.display_markdown(response, title=f"Simple Explanation: {topic}")
+        elif study_mode == "steps":
+            tui_utils.display_markdown(response, title=f"Steps: {topic}")
         continue
 
     # Add to current chat conv_history and session_history
@@ -751,9 +830,7 @@ while True:
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
-        else:
-            print("\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}")
+        tui_utils.display(response, title="Goodbye")
         processed_session_hist = helper_ai.summarise_session(session_history)
         history_db.store_history(session_start_time, current_user_id, processed_session_hist)
         system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")
@@ -775,9 +852,7 @@ while True:
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
-            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
-        else:
-            print(f"\n╭─ 🤖 Solaris" + "\n" + "╰" + "─"*(shutil.get_terminal_size().columns-1) + f"\n{textwrap.fill(response, width=shutil.get_terminal_size().columns)}") # type: ignore
+        tui_utils.display_markdown(response)
         # Append AI Response to History and session_history
         conv_history.append({
             "role": "assistant",
