@@ -28,6 +28,7 @@ import specialist_ai
 import web_search
 import study_ai
 import tui_utils
+import attachment
 
 # Logging Function Definition
 def system_log(category, level, message):
@@ -455,6 +456,7 @@ def show_help():
     tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
     tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
+    tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg) as temporary context.")
     tui_utils.display_inline("  .WEB[:quick|:standard|:deep] <question>  - Search the web for real-time information.")
     tui_utils.display_inline("")
     tui_utils.display_inline("\n[bold]Study Commands:[/]")
@@ -567,6 +569,33 @@ def clear():
         ╰───────────────────────────────────────────────────
         """))
 
+def attach():
+    """Handle .ATTACH command - ingest a file into temporary attachment context."""
+    file_path = tui_utils.prompt_box("File Path", "Enter absolute file path:").strip()
+    if not file_path:
+        tui_utils.display_inline("[red]No file path provided.[/]")
+        system_log("COMMAND", "WARNING", "Attach command invoked with empty path.")
+        return
+
+    result = attachment.ingest_file(file_path)
+    
+    if result["success"]:
+        summary = attachment.format_attachment_summary({
+            'file_name': os.path.basename(result['file_path']),
+            'file_type': result['file_type'],
+            'file_path': result['file_path'],
+            'attached_at': result.get('attached_at', ''),
+            'metadata': result['metadata']
+        })
+        tui_utils.display(summary, title="File Attached")
+        tui_utils.display_inline(f"[green]{result['message']}[/]")
+        if result.get("recommendation"):
+            tui_utils.display_inline(f"[yellow]{result['recommendation']}[/]")
+        system_log("COMMAND", "INFO", f"Attached {result['file_type']} file: {result['file_path']}")
+    else:
+        tui_utils.display_inline(f"[red]Failed to attach file: {result['message']}[/]")
+        system_log("COMMAND", "ERROR", f"Attach failed for {file_path}: {result['message']}")
+
 def parse_web_depth(question):
     q = question.strip()
     if q.startswith(":"):
@@ -671,6 +700,9 @@ def better(question="", clien=None, answers=""):
         if not question:
             return "No request provided. Try Again!"
 
+    # Get attachment context for specialists
+    attachment_context = attachment.get_combined_attachment_context()
+
     clients = {
         "openrouter" : client_or,
         "ollama-cloud" : client_ollama,
@@ -688,7 +720,7 @@ def better(question="", clien=None, answers=""):
             s_client = config['specialist']['writing']['secondary']['provider']
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
-                    response = specialist_ai.writer(question, clients[p_client], clients[s_client])
+                    response = specialist_ai.writer(question, clients[p_client], clients[s_client], attachment_context)
                 tui_utils.display_markdown(response, title="✍️ The Writer")
                 return response
         case 2:
@@ -696,7 +728,7 @@ def better(question="", clien=None, answers=""):
             s_client = config['specialist']['coding']['secondary']['provider']
             if p_client in clients and s_client in clients:
                 with specialist_spinner():
-                    response = specialist_ai.coder(question, clients[p_client], clients[s_client])
+                    response = specialist_ai.coder(question, clients[p_client], clients[s_client], attachment_context)
                 tui_utils.display_markdown(response, title="💻 The Programmer")
                 return response
         case 3:
@@ -784,6 +816,7 @@ while True:
         ".ABOUT" : show_about,
         ".UPDATE_PRIVACY" : update_privacy,
         ".CLEAR" : clear,
+        ".ATTACH" : attach,
     }
 
     # Handle .WEB command with optional question
@@ -888,7 +921,10 @@ while True:
         for summary, timestamp in memories
     )
 
-    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user)
+    # Get temporary attachment context if any
+    attachment_context = attachment.get_combined_attachment_context()
+
+    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context)
 
     if not question:
         print("No speech detected.")
@@ -905,6 +941,8 @@ while True:
             ai_voice_manager(pref, response)
             playsound("output.wav")
         tui_utils.display(response, title="Goodbye")
+        # Clear temporary attachment context on session end
+        attachment.clear_attachment_context()
         processed_session_hist = helper_ai.summarise_session(session_history)
         history_db.store_history(session_start_time, current_user_id, processed_session_hist)
         system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")

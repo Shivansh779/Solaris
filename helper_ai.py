@@ -32,7 +32,11 @@ client_or = config.init_assist_or()
 ollama_model = models['local']
 
 # Prompt Builder
-def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user):
+def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context=""):
+    attachment_block = f"""
+    Attached Files Context:
+    {attachment_context}
+""" if attachment_context else ""
     prompt = f"""
     You are a personal assistant.
 
@@ -61,7 +65,7 @@ def build_prompt(name, preference, imp_conv_history, conversation_text, memory_t
     
     About the User:
     {about_user}
-
+    {attachment_block}
     User's question: {question}
 """
     return prompt
@@ -88,7 +92,11 @@ def build_web_prompt(question, sources):
 """
 
 # Coder Prompt Builder
-def build_coding_prompt(prompt):
+def build_coding_prompt(prompt, attachment_context=""):
+    attachment_block = f"""
+    Attached Files Context:
+    {attachment_context}
+""" if attachment_context else ""
     return f"""You are Solaris' coding specialist. Help with writing code snippets, reviewing code, debugging errors, and improving existing code.
 
 ## Instructions
@@ -108,12 +116,16 @@ Adapt the format to the task. Generally:
 - **Why / Explanation**
 
 For simple requests, keep the response concise and provide the code directly.
-
+{attachment_block}
 User's request: {prompt}
 """
 
 # Writing Prompt Builder
-def build_writing_prompt(prompt):
+def build_writing_prompt(prompt, attachment_context=""):
+    attachment_block = f"""
+    Attached Files Context:
+    {attachment_context}
+""" if attachment_context else ""
     return f"""
 You are Solaris' writing specialist. Help with drafting, rewriting, editing, summarizing, and improving written content.
 
@@ -132,7 +144,7 @@ Adapt the format to the task. Generally:
 - **Notes / Explanation** when useful
 
 For simple requests, provide the finished writing directly.
-
+{attachment_block}
 User's request: {prompt}
 """
 

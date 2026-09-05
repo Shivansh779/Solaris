@@ -53,6 +53,7 @@ phonemizer==3.3.0
 playsound3==3.3.1
 propcache==0.5.2
 protobuf==7.35.1
+pypdf==6.17.0
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
 PyAutoGUI==0.9.54
@@ -73,6 +74,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 pytweening==1.2.0
 PyYAML==6.0.3
+Pillow==12.3.0
 rdflib==7.6.0
 referencing==0.37.0
 regex==2026.6.28

@@ -9,6 +9,13 @@ venv/
 __pycache__/
 *.pyc
 
+# Testing
+.pytest_cache/
+tests/
+test_attach.md
+test_attach.pdf
+test_attach.jpg
+
 # Cache
 .cache/
 

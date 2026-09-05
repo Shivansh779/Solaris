@@ -11,10 +11,10 @@ def system_log(category, level, message):
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def coder (prompt, p_client, s_client):
+def coder (prompt, p_client, s_client, attachment_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
- 
+  
     primary_model = config["specialist"]["coding"]["primary"]["name"]
     primary_provider = config["specialist"]["coding"]["primary"]["provider"]
 
@@ -26,14 +26,14 @@ def coder (prompt, p_client, s_client):
         if primary_provider == "google":
             response = p_client.models.generate_content(
                 model=primary_model,
-                contents=helper_ai.build_coding_prompt(prompt)
+                contents=helper_ai.build_coding_prompt(prompt, attachment_context)
             )
             return response.text
         else:
             response = p_client.chat.completions.create(
                 model=primary_model,
                 messages=[
-                    {"role" : "user", "content" : helper_ai.build_coding_prompt(prompt)}
+                    {"role" : "user", "content" : helper_ai.build_coding_prompt(prompt, attachment_context)}
                 ]
             )
             return response.choices[0].message.content
@@ -43,14 +43,14 @@ def coder (prompt, p_client, s_client):
             if secondary_provider == "google":
                 response = s_client.models.generate_content(
                     model=secondary_model,
-                    contents=helper_ai.build_coding_prompt(prompt)
+                    contents=helper_ai.build_coding_prompt(prompt, attachment_context)
                 )
                 return response.text
             else:
                 response = s_client.chat.completions.create(
                     model=secondary_model,
                     messages=[
-                        {"role" : "user", "content" : helper_ai.build_coding_prompt(prompt)}
+                        {"role" : "user", "content" : helper_ai.build_coding_prompt(prompt, attachment_context)}
                     ]
                 )
                 return response.choices[0].message.content
@@ -58,10 +58,10 @@ def coder (prompt, p_client, s_client):
             system_log("AI", "ERROR", f"Secondary model also failed for coding. Error: {str(e)}")
             return "Both primary and secondary models failed to generate a response."
 
-def writer (prompt, p_client, s_client):
+def writer (prompt, p_client, s_client, attachment_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
- 
+  
     primary_model = config["specialist"]["writing"]["primary"]["name"]
     primary_provider = config["specialist"]["writing"]["primary"]["provider"]
 
@@ -73,14 +73,14 @@ def writer (prompt, p_client, s_client):
         if primary_provider == "google":
             response = p_client.models.generate_content(
                 model=primary_model,
-                contents=helper_ai.build_writing_prompt(prompt)
+                contents=helper_ai.build_writing_prompt(prompt, attachment_context)
             )
             return response.text
         else:
             response = p_client.chat.completions.create(
                 model=primary_model,
                 messages=[
-                    {"role" : "user", "content" : helper_ai.build_writing_prompt(prompt)}
+                    {"role" : "user", "content" : helper_ai.build_writing_prompt(prompt, attachment_context)}
                 ]
             )
             return response.choices[0].message.content
@@ -90,14 +90,14 @@ def writer (prompt, p_client, s_client):
             if secondary_provider == "google":
                 response = s_client.models.generate_content(
                     model=secondary_model,
-                    contents=helper_ai.build_writing_prompt(prompt)
+                    contents=helper_ai.build_writing_prompt(prompt, attachment_context)
                 )
                 return response.text
             else:
                 response = s_client.chat.completions.create(
                     model=secondary_model,
                     messages=[
-                        {"role" : "user", "content" : helper_ai.build_writing_prompt(prompt)}
+                        {"role" : "user", "content" : helper_ai.build_writing_prompt(prompt, attachment_context)}
                     ]
                 )
                 return response.choices[0].message.content
