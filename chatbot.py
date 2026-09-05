@@ -25,6 +25,7 @@ import config
 import main_db
 import history_db
 import specialist_ai
+import web_search
 import study_ai
 import tui_utils
 
@@ -454,7 +455,7 @@ def show_help():
     tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
     tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
-    tui_utils.display_inline("  .WEB <question>        - Search the web for real-time information.")
+    tui_utils.display_inline("  .WEB[:quick|:standard|:deep] <question>  - Search the web for real-time information.")
     tui_utils.display_inline("")
     tui_utils.display_inline("\n[bold]Study Commands:[/]")
     tui_utils.display_inline("")
@@ -566,10 +567,83 @@ def clear():
         ╰───────────────────────────────────────────────────
         """))
 
+def parse_web_depth(question):
+    q = question.strip()
+    if q.startswith(":"):
+        rest = q[1:].strip()
+        if rest:
+            first_word = rest.split()[0].lower()
+            remaining = " ".join(rest.split()[1:]).strip()
+            if first_word == "quick":
+                return "quick", remaining
+            elif first_word == "deep":
+                return "deep", remaining
+    return "standard", q
+
+def display_sources(sources):
+    headers = ["#", "Title", "URL"]
+    rows = [[i+1, s["title"], s["url"]] for i, s in enumerate(sources)]
+    tui_utils.display_table(headers, rows, title="Sources")
+
 def handle_web(question=""):
-    print("Upcoming~")
-    if question:
-        system_log("COMMAND", "INFO", f"Web search requested: {question[:50]}...")
+    question = question.strip()
+    if not question:
+        print("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
+        system_log("COMMAND", "WARNING", "Web search requested with no question.")
+        return
+
+    depth, query = parse_web_depth(question)
+    if not query:
+        print("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
+        system_log("COMMAND", "WARNING", "Web search requested with no question.")
+        return
+    system_log("COMMAND", "INFO", f"Web search requested: {query[:50]}... (depth={depth}).")
+
+    with Spinner("Searching the web..."):
+        sources = web_search.search_web(query, depth)
+
+    if not sources:
+        print("Web search unavailable.")
+        system_log("WEB", "ERROR", f"Web search unavailable for query: {query[:50]}...")
+        return
+
+    provider = sources[0].get("source", "unknown")
+    urls = ", ".join(s["url"] for s in sources)
+    history_db.store_web_log(current_user_id, query, provider, depth, urls)
+
+    web_prompt = helper_ai.build_web_prompt(query, sources)
+
+    try:
+        text = [
+            "Thinking...",
+            "Reasoning...",
+            "Synthesizing sources...",
+            "Building response...",
+            "Connecting ideas...",
+        ]
+        spinner = Spinner(random.choice(text))
+        response = ask_ai(web_prompt, spinner=spinner)
+
+        if ai_voice_text == 'v':
+            ai_voice_manager(pref, response)
+            playsound("output.wav")
+        tui_utils.display_markdown(response, title="Web Search")
+
+        display_sources(sources)
+
+        session_history.append({
+            "role": "user",
+            "content": f".WEB {query}"
+        })
+        session_history.append({
+            "role": "assistant",
+            "content": response
+        })
+        system_log("AI", "INFO", f"Web search response generated for query: {query[:50]}...")
+
+    except Exception as e:
+        system_log("SYSTEM", "ERROR", f"Unexpected error in web search response generation: {e}")
+        print("An error occurred while processing the web search results.")
 
 def specialist_spinner():
     return Spinner(random.choice([

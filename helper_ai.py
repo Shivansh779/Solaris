@@ -66,6 +66,27 @@ def build_prompt(name, preference, imp_conv_history, conversation_text, memory_t
 """
     return prompt
 
+# Web Search Prompt Builder
+def build_web_prompt(question, sources):
+    sources_text = "\n\n".join(
+        f"[{i+1}] {s['title']}\nURL: {s['url']}\n{s['content']}"
+        for i, s in enumerate(sources)
+    )
+    return f"""
+    You are a personal assistant with access to current web search results.
+
+    Use ONLY the web sources provided below to answer the user's question.
+    - If the sources contain the answer, summarize them clearly and concisely.
+    - Cite your sources using numbered markers like [1], [2], etc., matching the source list.
+    - If the sources do NOT contain the answer, say so honestly instead of guessing.
+    - Do not use knowledge from outside these sources for factual claims.
+
+    Web Sources:
+    {sources_text}
+
+    User's question: {question}
+"""
+
 # Coder Prompt Builder
 def build_coding_prompt(prompt):
     return f"""You are Solaris' coding specialist. Help with writing code snippets, reviewing code, debugging errors, and improving existing code.

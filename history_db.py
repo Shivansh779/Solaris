@@ -40,6 +40,36 @@ def create_table():
     system_log("DATABASE", "INFO", "History table created or already exists.")
     cursor.close()
     conn.close()
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS web_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            query TEXT,
+            provider TEXT,
+            depth INTEGER,
+            urls TEXT,
+            created_on TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES user_data (user_id)
+        );
+    """)
+    conn.commit()
+    system_log("DATABASE", "INFO", "Web log table created or already exists.")
+    cursor.close()
+    conn.close()
+
+def store_web_log (user_id, query, provider, depth, urls):
+    conn = get_conn()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO web_log (user_id, query, provider, depth, urls, created_on) VALUES (?, ?, ?, ?, ?, ?);
+    """, (user_id, query, provider, depth, urls, current_time())
+    )
+    conn.commit()
+    system_log("DATABASE", "INFO", f"Inserted web log entry for user_id={user_id}, provider={provider}.")
+    cursor.close()
+    conn.close()
 
 def store_history (time, user_id, summary):
     conn = get_conn()

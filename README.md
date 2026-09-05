@@ -146,6 +146,8 @@ Create a .env file in the project root.
 GEMINI_API_KEY="your_gemini_api_key"
 OR_API_KEY="your_openrouter_api_key"
 OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
+TAVILY_API_KEY="your_tavily_api_key"
+FIRECRAWL_API_KEY="your_firecrawl_api_key"
 ```
 
 <u>API Usage 🔐</u>
@@ -155,6 +157,8 @@ OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
 |GEMINI_API_KEY	|Primary Gemini chat requests
 |OR_API_KEY	| OpenRouter fallback chat
 |OR_ASSIST_API_KEY	| Preference and memory summarization
+|TAVILY_API_KEY	| Primary web search provider for the `.WEB` command
+|FIRECRAWL_API_KEY	| Fallback web search provider for the `.WEB` command
 
 ---
 
@@ -185,6 +189,8 @@ The assistant will:
 |.ABOUT |Displays Information about Solaris, and Profile Details
 |.UPDATE_PRIVACY | To Update Privacy Settings
 |.CLEAR | Clears the terminal window. Conversation, memory, and context remain unchanged.
+|.WEB[:quick\|:standard\|:deep] | Search the web for real-time information (primary: Tavily, fallback: Firecrawl)
+|.WEB <question> | Default (standard) depth web search when no `:quick`/`:deep` suffix is given
 |exit, quit, bye, goodbye, close	|Save the session summary and exit
 
 ---
@@ -228,6 +234,18 @@ Stores:
 * Associated user_id
 
 Separating these tables keeps profile management independent from conversational memory while maintaining their relationship through the user ID.
+
+### <u>web_log</u>
+
+**Managed by history_db.py**
+
+Stores:
+
+* Web search metadata for the `.WEB` command
+* Query, provider used (tavily / firecrawl), depth, and source URLs
+* Associated user_id and timestamp
+
+Raw retrieved web content is intentionally <b>not</b> persisted to keep the database small.
 
 ---
 ## <u>Notes 📝</u>

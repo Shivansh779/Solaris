@@ -8,6 +8,13 @@
     ],
     "local": "Qwen/Qwen3:4b-thinking",
     "or_assist": "nvidia/nemotron-3-super-120b-a12b:free",
+    "web": {
+        "depths": {
+            "quick": 3,
+            "standard": 5,
+            "deep": 8
+        }
+    },
     "specialist": {
         "coding": {
             "primary": {
