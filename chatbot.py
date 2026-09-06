@@ -457,6 +457,7 @@ def show_help():
     tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
     tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg) as temporary context.")
+    tui_utils.display_inline("  .DETACH                - Remove a file attachment (see attached list).")
     tui_utils.display_inline("  .WEB[:quick|:standard|:deep] <question>  - Search the web for real-time information.")
     tui_utils.display_inline("")
     tui_utils.display_inline("\n[bold]Study Commands:[/]")
@@ -595,6 +596,49 @@ def attach():
     else:
         tui_utils.display_inline(f"[red]Failed to attach file: {result['message']}[/]")
         system_log("COMMAND", "ERROR", f"Attach failed for {file_path}: {result['message']}")
+
+def detach():
+    """Handle .DETACH command - remove a file from temporary attachment context."""
+    if not attachment.has_attachments():
+        tui_utils.display_inline("[yellow]No files attached currently.[/]")
+        system_log("COMMAND", "INFO", "Detach command invoked with no attachments.")
+        return
+
+    all_attachments = attachment.get_all_attachments()
+    rows = []
+    for idx, (abs_path, att) in enumerate(all_attachments.items(), start=1):
+        rows.append((str(idx), abs_path))
+
+    tui_utils.display_table(["#", "File Path"], rows, title="Attached Files")
+
+    pick_str = tui_utils.prompt_box("Serial Number", "Enter the serial number to detach:").strip()
+    if not pick_str:
+        tui_utils.display_inline("[red]No serial number provided.[/]")
+        system_log("COMMAND", "WARNING", "Detach command invoked with empty serial number.")
+        return
+
+    try:
+        pick = int(pick_str)
+    except ValueError:
+        tui_utils.display_inline("[red]Invalid serial number. Please enter a number.[/]")
+        system_log("COMMAND", "WARNING", f"Detach command invoked with non-numeric input: {pick_str}")
+        return
+
+    if pick < 1 or pick > len(all_attachments):
+        tui_utils.display_inline(f"[red]Invalid serial number. Choose between 1 and {len(all_attachments)}.[/]")
+        system_log("COMMAND", "WARNING", f"Detach command invoked with out-of-range serial number: {pick}")
+        return
+
+    dict_index = pick - 1
+    removed = attachment.remove_attachment(dict_index)
+    if removed is None:
+        tui_utils.display_inline("[red]Failed to remove attachment (internal error).[/]")
+        system_log("COMMAND", "ERROR", f"remove_attachment returned None for valid index {dict_index}")
+        return
+
+    import json
+    tui_utils.display_inline(f"[green]Removed attachment: {removed['file_name']}[/]")
+    system_log("COMMAND", "INFO", f"Removed attachment: {removed['file_name']}. Metadata: {json.dumps(removed['metadata'])}")
 
 def parse_web_depth(question):
     q = question.strip()
@@ -817,6 +861,7 @@ while True:
         ".UPDATE_PRIVACY" : update_privacy,
         ".CLEAR" : clear,
         ".ATTACH" : attach,
+        ".DETACH" : detach,
     }
 
     # Handle .WEB command with optional question

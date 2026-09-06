@@ -34,13 +34,14 @@ def clear_attachment_context() -> None:
     _attachment_context.clear()
 
 
-def remove_attachment(file_path: str) -> bool:
-    """Remove a specific attachment from temporary context."""
-    abs_path = os.path.abspath(file_path)
-    if abs_path in _attachment_context:
-        del _attachment_context[abs_path]
-        return True
-    return False
+def remove_attachment(index: int) -> Optional[Dict[str, Any]]:
+    """Remove an attachment by its 0-based index in the insertion-order dict.
+    Returns the removed attachment dict, or None if index is out of range."""
+    if index < 0 or index >= len(_attachment_context):
+        return None
+    path = list(_attachment_context.keys())[index]
+    removed = _attachment_context.pop(path)
+    return removed
 
 
 def get_file_type(file_path: str) -> Optional[str]:
