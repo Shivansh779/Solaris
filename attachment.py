@@ -3,24 +3,22 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 from datetime import datetime
 
 import pypdf
 from PIL import Image
 
 
-# Supported file extensions
 SUPPORTED_EXTENSIONS = {
     '.md': 'markdown',
     '.pdf': 'pdf',
     '.jpg': 'jpeg',
     '.jpeg': 'jpeg',
+    '.png': 'png',
 }
 
 
-# In-memory temporary attachment storage (session-scoped)
-# This is deliberately simple - a dict keyed by file path, cleared on session end
 _attachment_context: Dict[str, Dict[str, Any]] = {}
 
 
@@ -54,21 +52,21 @@ def validate_file_path(file_path: str) -> Tuple[bool, str]:
     """Validate that the file path exists and is a supported type."""
     if not file_path:
         return False, "No file path provided."
-    
+
     if not os.path.isabs(file_path):
         return False, "Path must be absolute. Please provide the full absolute path to the file."
-    
+
     if not os.path.exists(file_path):
         return False, f"File not found: {file_path}"
-    
+
     if not os.path.isfile(file_path):
         return False, f"Path is not a file: {file_path}"
-    
+
     file_type = get_file_type(file_path)
     if not file_type:
         supported = ', '.join(sorted(SUPPORTED_EXTENSIONS.keys()))
         return False, f"Unsupported file type. Supported types: {supported}"
-    
+
     return True, ""
 
 
@@ -77,10 +75,10 @@ def read_markdown(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         if not content.strip():
             return False, "Markdown file is empty.", {}
-        
+
         metadata = {
             'type': 'markdown',
             'size_bytes': os.path.getsize(file_path),
@@ -99,10 +97,10 @@ def read_pdf(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
     try:
         reader = pypdf.PdfReader(file_path)
         num_pages = len(reader.pages)
-        
+
         if num_pages == 0:
             return False, "PDF file has no pages.", {}
-        
+
         text_parts = []
         for i, page in enumerate(reader.pages):
             try:
@@ -110,12 +108,11 @@ def read_pdf(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
                 if page_text and page_text.strip():
                     text_parts.append(f"--- Page {i+1} ---\n{page_text.strip()}")
             except Exception:
-                # Skip pages that fail to extract
                 continue
-        
+
         if not text_parts:
             return False, "PDF appears to be scanned/image-only (no extractable text). OCR is not supported in this version.", {}
-        
+
         content = "\n\n".join(text_parts)
         metadata = {
             'type': 'pdf',
@@ -131,30 +128,29 @@ def read_pdf(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
         return False, f"Failed to read PDF file: {e}", {}
 
 
-def read_jpeg(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
-    """Read JPEG metadata and prepare for vision model processing."""
+def read_image(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
+    """Read image metadata and prepare for vision model processing (JPEG/PNG)."""
     try:
         with Image.open(file_path) as img:
-            # Verify it's a valid image
             img.verify()
-        
-        # Re-open for metadata (verify() closes the file)
+
         with Image.open(file_path) as img:
             width, height = img.size
             mode = img.mode
             format_name = img.format
-            
+            mime_type = 'image/png' if format_name == 'PNG' else 'image/jpeg'
+
             metadata = {
-                'type': 'jpeg',
+                'type': 'png' if format_name == 'PNG' else 'jpeg',
                 'size_bytes': os.path.getsize(file_path),
                 'width': width,
                 'height': height,
                 'mode': mode,
                 'format': format_name,
+                'mime_type': mime_type,
                 'path': os.path.abspath(file_path),
             }
-        
-        # For text context, we provide a description that can be used by non-vision models
+
         content = (
             f"[Attached Image: {os.path.basename(file_path)}]\n"
             f"Dimensions: {width}x{height} pixels\n"
@@ -163,24 +159,24 @@ def read_jpeg(file_path: str) -> Tuple[bool, str, Dict[str, Any]]:
             f"File size: {metadata['size_bytes']:,} bytes\n"
             f"Note: This image requires a vision-capable model for content analysis."
         )
-        
+
         return True, content, metadata
     except Exception as e:
-        return False, f"Failed to read JPEG file: {e}", {}
+        return False, f"Failed to read image file: {e}", {}
 
 
-# File reader dispatch table
 FILE_READERS = {
     'markdown': read_markdown,
     'pdf': read_pdf,
-    'jpeg': read_jpeg,
+    'jpeg': read_image,
+    'png': read_image,
 }
 
 
 def ingest_file(file_path: str) -> Dict[str, Any]:
     """
     Ingest a file into temporary attachment context.
-    
+
     Returns a result dict with:
     - success: bool
     - message: str (user-facing message)
@@ -190,7 +186,6 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
     - metadata: dict
     - recommendation: str or None (e.g., markdown .BETTER suggestion)
     """
-    # Validate
     valid, error_msg = validate_file_path(file_path)
     if not valid:
         return {
@@ -202,7 +197,7 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
             'metadata': {},
             'recommendation': None,
         }
-    
+
     abs_path = os.path.abspath(file_path)
     file_type = get_file_type(abs_path)
     if file_type is None:
@@ -215,8 +210,7 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
             'metadata': {},
             'recommendation': None,
         }
-    
-    # Read file using appropriate reader
+
     reader = FILE_READERS.get(file_type)
     if not reader:
         return {
@@ -228,20 +222,19 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
             'metadata': {},
             'recommendation': None,
         }
-    
+
     success, content, metadata = reader(abs_path)
     if not success:
         return {
             'success': False,
-            'message': content,  # content holds error message on failure
+            'message': content,
             'file_path': abs_path,
             'file_type': file_type,
             'content': '',
             'metadata': {},
             'recommendation': None,
         }
-    
-    # Store in temporary attachment context
+
     attachment_data = {
         'file_path': abs_path,
         'file_name': os.path.basename(abs_path),
@@ -251,16 +244,18 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
         'attached_at': datetime.now().isoformat(),
     }
     _attachment_context[abs_path] = attachment_data
-    
-    # Generate recommendation for markdown files
+
     recommendation = None
     if file_type == 'markdown':
         recommendation = (
-            "File attached is a markdown file. I recommend using .BETTER for better results "
-            "if the markdown file is a SKILLS/USER file that provides context, "
-            "in-depth details or preferences for a task."
+            "File attached is a markdown file. Use .BETTER for better results "
+            "if the markdown file provides context, preferences, or task details."
         )
-    
+    elif file_type in ('jpeg', 'png'):
+        recommendation = (
+            "Image attached. Use .VISION <question> to analyze it with a vision model."
+        )
+
     return {
         'success': True,
         'message': f"Successfully attached {file_type.upper()} file: {os.path.basename(abs_path)}",
@@ -281,14 +276,14 @@ def format_attachment_summary(attachment: Dict[str, Any]) -> str:
         f"Path: {attachment['file_path']}",
         f"Attached: {attachment['attached_at']}",
     ]
-    
+
     if attachment['file_type'] == 'markdown':
         lines.append(f"Lines: {meta.get('line_count', 'N/A')}, Characters: {meta.get('char_count', 'N/A')}")
     elif attachment['file_type'] == 'pdf':
         lines.append(f"Pages: {meta.get('page_count', 'N/A')}, Pages with text: {meta.get('pages_with_text', 'N/A')}, Characters: {meta.get('char_count', 'N/A')}")
-    elif attachment['file_type'] == 'jpeg':
+    elif attachment['file_type'] in ('jpeg', 'png'):
         lines.append(f"Dimensions: {meta.get('width', 'N/A')}x{meta.get('height', 'N/A')}, Mode: {meta.get('mode', 'N/A')}")
-    
+
     lines.append(f"Size: {meta.get('size_bytes', 'N/A'):,} bytes")
     return "\n".join(lines)
 
@@ -313,7 +308,7 @@ def _format_attachments_context(attachments) -> str:
     """Build the standard ATTACHED FILES CONTEXT block from an iterable of attachment dicts."""
     if not attachments:
         return ""
-    
+
     parts = ["=== ATTACHED FILES CONTEXT ==="]
     for attachment in attachments:
         parts.append(f"\n--- {attachment['file_name']} ({attachment['file_type'].upper()}) ---")
@@ -330,34 +325,56 @@ def get_combined_attachment_context() -> str:
     return _format_attachments_context(_attachment_context.values())
 
 
-def get_subset_attachment_context(indices: list[int]) -> str:
+def get_subset_attachment_context(indices: List[int]) -> str:
     """
     Get combined context for a subset of attachments by their 0-based insertion-order indices.
     Invalid indices are silently ignored. Returns empty string if no valid indices.
     """
     if not indices:
         return ""
-    
+
     all_attachments = list(_attachment_context.values())
     selected = []
     for idx in indices:
         if 0 <= idx < len(all_attachments):
             selected.append(all_attachments[idx])
-    
+
     return _format_attachments_context(selected)
 
 
-def get_attachments_for_vision() -> list:
+def get_attachments_for_vision() -> List[Dict[str, Any]]:
     """
     Get attachments that are images, formatted for vision-capable models.
-    Returns a list of dicts with 'path' and 'mime_type' for API calls.
+    Returns a list of dicts with 'path', 'mime_type', and 'metadata' for API calls.
     """
     vision_attachments = []
     for attachment in _attachment_context.values():
-        if attachment['file_type'] == 'jpeg':
+        if attachment['file_type'] in ('jpeg', 'png'):
             vision_attachments.append({
                 'path': attachment['file_path'],
-                'mime_type': 'image/jpeg',
+                'mime_type': attachment['metadata'].get('mime_type', 'image/jpeg'),
                 'metadata': attachment['metadata'],
             })
     return vision_attachments
+
+
+def get_subset_vision_attachments(indices: List[int]) -> List[Dict[str, Any]]:
+    """
+    Get vision-formatted attachments for a subset by 0-based insertion-order indices.
+    Only includes image types (jpeg, png). Invalid indices ignored.
+    """
+    if not indices:
+        return []
+
+    all_attachments = list(_attachment_context.values())
+    result = []
+    for idx in indices:
+        if 0 <= idx < len(all_attachments):
+            att = all_attachments[idx]
+            if att['file_type'] in ('jpeg', 'png'):
+                result.append({
+                    'path': att['file_path'],
+                    'mime_type': att['metadata'].get('mime_type', 'image/jpeg'),
+                    'metadata': att['metadata'],
+                })
+    return result
