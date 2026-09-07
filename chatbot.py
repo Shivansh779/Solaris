@@ -29,6 +29,7 @@ import web_search
 import study_ai
 import tui_utils
 import attachment
+import vision_ai
 
 # Logging Function Definition
 def system_log(category, level, message):
@@ -456,8 +457,9 @@ def show_help():
     tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
     tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
-    tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg) as temporary context.")
+    tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg, png) as temporary context.")
     tui_utils.display_inline("  .DETACH                - Remove a file attachment (see attached list).")
+    tui_utils.display_inline("  .VISION[:question]     - Analyze attached images with a vision model.")
     tui_utils.display_inline("  .WEB[:quick|:standard|:deep] <question>  - Search the web for real-time information.")
     tui_utils.display_inline("")
     tui_utils.display_inline("\n[bold]Study Commands:[/]")
@@ -591,7 +593,7 @@ def attach():
         tui_utils.display(summary, title="File Attached")
         tui_utils.display_inline(f"[green]{result['message']}[/]")
         if result.get("recommendation"):
-            tui_utils.display_inline(f"[yellow]{result['recommendation']}[/]")
+            tui_utils.display_inline(f"[dim]{result['recommendation']}[/]")
         system_log("COMMAND", "INFO", f"Attached {result['file_type']} file: {result['file_path']}")
     else:
         tui_utils.display_inline(f"[red]Failed to attach file: {result['message']}[/]")
@@ -639,6 +641,127 @@ def detach():
     import json
     tui_utils.display_inline(f"[green]Removed attachment: {removed['file_name']}[/]")
     system_log("COMMAND", "INFO", f"Removed attachment: {removed['file_name']}. Metadata: {json.dumps(removed['metadata'])}")
+
+def select_vision_attachments():
+    """Select image attachments for .VISION. Returns list of image dicts or empty list."""
+    images = attachment.get_attachments_for_vision()
+    if not images:
+        return []
+
+    if len(images) == 1:
+        return images
+
+    rows = []
+    for idx, img in enumerate(images, start=1):
+        rows.append((str(idx), img['path']))
+
+    tui_utils.display_table(["#", "Image Path"], rows, title="Attached Images")
+
+    while True:
+        yn = tui_utils.prompt_box("Use Image", "Use attached images for .VISION? (Y/N)").strip().lower()
+        if yn in ("y", "yes"):
+            break
+        elif yn in ("n", "no"):
+            return []
+        else:
+            tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
+
+    max_images = len(images)
+    while True:
+        count_str = tui_utils.prompt_box("Image Count", f"How many images? (1-{max_images})").strip()
+        if not count_str:
+            tui_utils.display_inline("[yellow]Please enter a number.[/]")
+            continue
+        try:
+            count = int(count_str)
+            if 1 <= count <= max_images:
+                break
+            else:
+                tui_utils.display_inline(f"[red]Choose between 1 and {max_images}.[/]")
+        except ValueError:
+            tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
+
+    picked = set()
+    for k in range(1, count + 1):
+        while True:
+            pick_str = tui_utils.prompt_box(f"Image #{k}", f"Enter image number (1-{max_images})").strip()
+            if not pick_str:
+                tui_utils.display_inline("[yellow]Please enter a number.[/]")
+                continue
+            try:
+                pick = int(pick_str)
+                if pick < 1 or pick > max_images:
+                    tui_utils.display_inline(f"[red]Choose between 1 and {max_images}.[/]")
+                elif pick in picked:
+                    tui_utils.display_inline("[red]Already selected. Choose a different one.[/]")
+                else:
+                    picked.add(pick)
+                    break
+            except ValueError:
+                tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
+
+    indices = [p - 1 for p in sorted(picked)]
+    return attachment.get_subset_vision_attachments(indices)
+
+
+def handle_vision(question=""):
+    """Handle .VISION command - analyze attached images with a vision model."""
+    with open("config.json", "r") as f:
+        config_data = json.load(f)
+
+    vm = config_data.get("vision_model", {})
+    primary = vm.get("primary", {})
+    if not primary.get("model") or not primary.get("provider"):
+        tui_utils.display("[yellow]No vision model configured. Set vision_model.primary in config.json.[/]", title="Vision")
+        system_log("COMMAND", "WARNING", ".VISION invoked but no vision model configured.")
+        return
+
+    if not attachment.has_attachments():
+        tui_utils.display_inline("[yellow]No files attached. Use .ATTACH to add an image first.[/]")
+        return
+
+    images = select_vision_attachments()
+    if not images:
+        tui_utils.display_inline("[yellow]No images selected.[/]")
+        return
+
+    if not question:
+        question = tui_utils.prompt_box("Question", "What would you like to know about the image?").strip()
+        if not question:
+            tui_utils.display_inline("[red]No question provided.[/]")
+            return
+
+    clients = {
+        "openrouter": client_or,
+        "ollama-cloud": client_ollama,
+        "google": client_gem,
+        "nvidia": client_nvidia,
+        "groq": client_groq,
+    }
+
+    p_provider = primary.get("provider", "")
+    s_provider = vm.get("secondary", {}).get("provider", "")
+    p_client = clients.get(p_provider)
+    s_client = clients.get(s_provider)
+
+    if not p_client and not s_client:
+        tui_utils.display("[red]Vision model providers are unavailable. Check your config.[/]", title="Error")
+        system_log("COMMAND", "ERROR", ".VISION: no available vision model clients.")
+        return
+
+    try:
+        with specialist_spinner():
+            response = vision_ai.vision(question, p_client, s_client, images)
+    except Exception as e:
+        system_log("COMMAND", "ERROR", f".VISION failed: {e}")
+        tui_utils.display("[red]Vision analysis failed. Check logs for details.[/]", title="Error")
+        return
+
+    img_count = len(images)
+    img_word = "image" if img_count == 1 else "images"
+    tui_utils.display_markdown(response, title=f"Vision Analysis ({img_count} {img_word})")
+    system_log("COMMAND", "INFO", f".VISION analyzed {img_count} {img_word} with question: {question[:80]}")
+
 
 def parse_web_depth(question):
     q = question.strip()
@@ -944,6 +1067,15 @@ while True:
         try:
             web_question = question[4:].strip() if len(question) > 4 else ""
             handle_web(web_question)
+        except Exception as e:
+            system_log("COMMAND", "ERROR", f"Command '{question}' failed: {e}")
+        continue
+
+    # Handle .VISION command
+    if question.upper().startswith(".VISION"):
+        try:
+            vis_question = question[7:].strip() if len(question) > 7 else ""
+            handle_vision(vis_question)
         except Exception as e:
             system_log("COMMAND", "ERROR", f"Command '{question}' failed: {e}")
         continue

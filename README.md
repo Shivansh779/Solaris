@@ -189,8 +189,9 @@ The assistant will:
 |.ABOUT |Displays Information about Solaris, and Profile Details
 |.UPDATE_PRIVACY | To Update Privacy Settings
 |.CLEAR | Clears the terminal window. Conversation, memory, and context remain unchanged.
-|.ATTACH | Attach a file (md, pdf, jpg) as temporary context
+|.ATTACH | Attach a file (md, pdf, jpg, png) as temporary context
 |.DETACH | Remove a file attachment from session context
+|.VISION[:question] | Analyze attached images with a vision model
 |.WEB[:quick\|:standard\|:deep] | Search the web for real-time information (primary: Tavily, fallback: Firecrawl)
 |.WEB <question> | Default (standard) depth web search when no `:quick`/`:deep` suffix is given
 |exit, quit, bye, goodbye, close	|Save the session summary and exit

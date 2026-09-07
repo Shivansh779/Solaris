@@ -15,15 +15,15 @@
             "deep": 8
         }
     },
-    "vision_model" : {
-	"primary" : {	
-		"model" : "",
-		"provider" : ""
-	},
-	"secondary" : {
-		"model" : "",
-		"provider" : ""
-	}
+    "vision_model": {
+        "primary": {
+            "model": "moonshotai/kimi-k3",
+            "provider": "nvidia"
+        },
+        "secondary": {
+            "model": "meta/llama-3.2-90b-vision-instruct",
+            "provider": "nvidia"
+        }
     },
     "specialist": {
         "coding": {

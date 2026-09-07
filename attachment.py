@@ -248,12 +248,14 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
     recommendation = None
     if file_type == 'markdown':
         recommendation = (
-            "File attached is a markdown file. Use .BETTER for better results "
-            "if the markdown file provides context, preferences, or task details."
+            "File attached is a markdown file. I recommend using .BETTER for better results "
+            "if the markdown file is a SKILLS/USER file that provides context, "
+            "in-depth details or preferences for a task."
         )
     elif file_type in ('jpeg', 'png'):
         recommendation = (
-            "Image attached. Use .VISION <question> to analyze it with a vision model."
+            "An Image file was attached. I recommend that you use .VISION and follow up with a question, "
+            "if you want to analyse this picture, or any other picture attached."
         )
 
     return {
