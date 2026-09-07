@@ -33,3 +33,10 @@ System_Logs.txt
 
 # Audio
 *.wav
+
+# Test Files
+*.md
+*.pdf
+*.jpeg
+*.jpg
+*.png
