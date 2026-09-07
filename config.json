@@ -15,6 +15,16 @@
             "deep": 8
         }
     },
+    "vision_model" : {
+	"primary" : {	
+		"model" : "",
+		"provider" : "",
+	},
+	"secondary : {
+		"model" : "",
+		"provider" : "",
+	},
+    }
     "specialist": {
         "coding": {
             "primary": {

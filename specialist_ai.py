@@ -105,7 +105,7 @@ def writer (prompt, p_client, s_client, attachment_context=""):
             system_log("AI", "ERROR", f"Secondary model also failed for writing. Error: {str(e)}")
             return "Both primary and secondary models failed to generate a response."
 
-def questionaire (prompt, p_client, s_client):
+def questionaire (prompt, p_client, s_client, attachment_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
 
@@ -120,14 +120,14 @@ def questionaire (prompt, p_client, s_client):
         if primary_provider == "google":
             response = p_client.models.generate_content(
                 model=primary_model,
-                contents=helper_ai.questions(prompt)
+                contents=helper_ai.questions(prompt, attachment_context)
             )
             return response.text
         else:
             response = p_client.chat.completions.create(
                 model=primary_model,
                 messages=[
-                    {"role" : "user", "content" : helper_ai.questions(prompt)}
+                    {"role" : "user", "content" : helper_ai.questions(prompt, attachment_context)}
                 ]
             )
             return response.choices[0].message.content
@@ -137,14 +137,14 @@ def questionaire (prompt, p_client, s_client):
             if secondary_provider == "google":
                 response = s_client.models.generate_content(
                     model=secondary_model,
-                    contents=helper_ai.questions(prompt)
+                    contents=helper_ai.questions(prompt, attachment_context)
                 )
                 return response.text
             else:
                 response = s_client.chat.completions.create(
                     model=secondary_model,
                     messages=[
-                        {"role" : "user", "content" : helper_ai.questions(prompt)}
+                        {"role" : "user", "content" : helper_ai.questions(prompt, attachment_context)}
                     ]
                 )
                 return response.choices[0].message.content
@@ -152,10 +152,10 @@ def questionaire (prompt, p_client, s_client):
             system_log("AI", "ERROR", f"Secondary model also failed for questions. Error: {str(e)}")
             return "The question generation failed on both models."
 
-def strategist (prompt, p_client, s_client, ai_questions, answers, previous_draft=None, force_secondary=False):
+def strategist (prompt, p_client, s_client, ai_questions, answers, previous_draft=None, force_secondary=False, attachment_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
- 
+  
     primary_model = config["specialist"]["reasoning"]["primary"]["name"]
     primary_provider = config["specialist"]["reasoning"]["primary"]["provider"]
 
@@ -166,7 +166,7 @@ def strategist (prompt, p_client, s_client, ai_questions, answers, previous_draf
         if provider == "google":
             response = client.models.generate_content(
                 model=model,
-                contents=helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft)
+                contents=helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft, attachment_context)
             )
             return response.text
         else:
@@ -175,7 +175,7 @@ def strategist (prompt, p_client, s_client, ai_questions, answers, previous_draf
                 messages=[
                     {
                      "role" : "user",
-                     "content" : helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft)
+                     "content" : helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft, attachment_context)
                     }
                 ]
             )

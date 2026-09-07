@@ -149,7 +149,7 @@ User's request: {prompt}
 """
 
 # Strategist Prompt Builder
-def build_strategist_prompt(prompt, answers, ai_questions, previous_draft=None):
+def build_strategist_prompt(prompt, answers, ai_questions, previous_draft=None, attachment_context=""):
     comparison = ""
     if previous_draft:
         comparison = f"""
@@ -159,6 +159,10 @@ A previous strategist draft exists. Critically evaluate it and produce a revised
 Previous Draft:
 {previous_draft}
 """
+    attachment_block = f"""
+    Attached Files Context:
+    {attachment_context}
+""" if attachment_context else ""
     return f"""
     You are Solaris' Strategist. Turn the user's defined goal and collected answers into a clear, detailed, and practical PRD or Design Draft.
 
@@ -173,6 +177,7 @@ Previous Draft:
 - Keep the design internally consistent.
 - Do not introduce unnecessary complexity.
 - When given another strategist's draft, critically evaluate it and improve, challenge, or replace its decisions where appropriate. Avoid repeating the same approach without adding value.
+- Use attached file context (if provided) to ground the design in the user's actual preferences, scope, and task details.
 
 ## Output
 Adapt the structure to the task. Generally include:
@@ -208,37 +213,53 @@ User's Question: {prompt}
 Questions asked to user for details: {ai_questions}
 
 Answer's Provided by the user to questions provided: {answers}
+{attachment_block}
 {comparison}
 """
 
 # Questionaire Prompt
-def questions (prompt):
-    return f"""
-You are the planning-question stage of Solaris' Strategist mode. Your job is to understand the user's goal deeply enough for another model to create a strong PRD or Design Draft.
-
-## Instructions
-- Read the user's goal carefully before asking anything.
-- For the next response ask the most important questions needed to understand the goal, requirements, constraints, preferences, and intended outcome.
-- Ask a maximum of 10 questions.
-- Make questions specific and non-redundant.
-- Prioritize questions whose answers could materially change the eventual design.
-- Do not ask questions that can reasonably be inferred from the user's goal.
-- Do not design the solution, write the PRD, or prematurely recommend an implementation.
-- Ask all questions in one response so the user can answer them together.
-- If the goal is already sufficiently clear, ask fewer questions rather than forcing 10.
-- Choose the best answer for questions with N/A as answers by the User.
-
-## Output
-
-### Questions
-1. ...
-2. ...
-3. ...
-
-Keep the questions concise and easy to answer.
-
-User's Request: {prompt}
-"""
+def questions(prompt, attachment_context=""):
+    attachment_block = (
+        "Attached Files Context:\n" + attachment_context + "\n"
+    ) if attachment_context else ""
+    return (
+        "You are the planning-question stage of Solaris' Strategist mode. "
+        "Your job is to understand the user's goal deeply enough for another "
+        "model to create a strong PRD or Design Draft.\n\n"
+        "## Instructions\n\n"
+        "- Read the user's goal carefully before asking anything.\n"
+        "- For the next response ask the most important questions needed to "
+        "understand the goal, requirements, constraints, preferences, and "
+        "intended outcome.\n"
+        "- Ask a maximum of 10 questions.\n"
+        "- Make questions specific and non-redundant.\n"
+        "- Prioritize questions whose answers could materially change the "
+        "eventual design.\n"
+        "- Do not ask questions that can reasonably be inferred from the "
+        "user's goal.\n"
+        "- Do not design the solution, write the PRD, or prematurely "
+        "recommend an implementation.\n"
+        "- Ask all questions in one response so the user can answer them "
+        "together.\n"
+        "- If the goal is already sufficiently clear, ask fewer questions "
+        "rather than forcing 10.\n"
+        "- Choose the best answer for questions with N/A as answers by the "
+        "User.\n"
+        "- Use attached file context (if provided) to understand the user, "
+        "task structure, and stated preferences; tailor the questions to the "
+        "user's level -- avoid enterprise-level jargon or processes unless "
+        "the context indicates a technical or expert audience.\n"
+        "- Do not ask questions already answered in attached files.\n\n"
+        "## Output\n\n"
+        "### Questions\n"
+        "1. ...\n"
+        "2. ...\n"
+        "3. ...\n\n"
+        "Keep the questions concise and easy to answer.\n"
+        + attachment_block
+        + "User's Request: "
+        + prompt
+    )
 
 # Preference summariser
 def summarise_pref(user_preference):

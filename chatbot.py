@@ -792,11 +792,13 @@ def strategist_flow(goal, p_client, s_client):
     if not goal:
         return "No goal provided. Try again."
 
+    attachment_context = attachment.get_combined_attachment_context()
+
     system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
 
     print("\nSolaris is drafting its questions...")
     with specialist_spinner():
-        ai_questions = specialist_ai.questionaire(goal, p_client, s_client)
+        ai_questions = specialist_ai.questionaire(goal, p_client, s_client, attachment_context)
     tui_utils.display_markdown(ai_questions, title="🤖 Solaris Questions")
 
     answers = tui_utils.prompt_box("Your Answers", "Respond to each question clearly:").strip()
@@ -805,7 +807,7 @@ def strategist_flow(goal, p_client, s_client):
 
     system_log("AI", "INFO", "Primary strategist drafting PRD.")
     with specialist_spinner():
-        draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers)
+        draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers, attachment_context=attachment_context)
     previous_draft = None
 
     while True:
@@ -820,7 +822,7 @@ def strategist_flow(goal, p_client, s_client):
             previous_draft = draft
             with specialist_spinner():
                 draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
-                                                 previous_draft=previous_draft, force_secondary=True)
+                                                 previous_draft=previous_draft, force_secondary=True, attachment_context=attachment_context)
         else:
             print("Invalid input. Please enter Y or N.")
             
