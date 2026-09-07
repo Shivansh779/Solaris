@@ -727,7 +727,81 @@ def specialist_spinner():
         "Crafting specialist response..."
     ]))
 
+
+def select_better_attachments() -> str:
+    """Prompt user to select which attached files .BETTER should use.
+    Returns combined context string for selected files, or empty string if none/no attachments."""
+    if not attachment.has_attachments():
+        return ""
+
+    all_attachments = attachment.get_all_attachments()
+    rows = []
+    for idx, (abs_path, att) in enumerate(all_attachments.items(), start=1):
+        rows.append((str(idx), abs_path))
+
+    tui_utils.display_table(["#", "File Path"], rows, title="Attached Files")
+
+    # Y/N prompt with re-prompt on invalid
+    while True:
+        yn = tui_utils.prompt_box("Use Attached Files", "Use attached files for .BETTER? (Y/N)").strip().lower()
+        if yn in ("y", "yes"):
+            break
+        elif yn in ("n", "no"):
+            return ""
+        else:
+            tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
+
+    # Count prompt with re-prompt on invalid
+    max_files = len(all_attachments)
+    while True:
+        count_str = tui_utils.prompt_box("File Count", f"How many files to use? (1-{max_files})").strip()
+        if not count_str:
+            tui_utils.display_inline("[yellow]Please enter a number.[/]")
+            continue
+        try:
+            count = int(count_str)
+            if 1 <= count <= max_files:
+                break
+            else:
+                tui_utils.display_inline(f"[red]Invalid count. Choose between 1 and {max_files}.[/]")
+        except ValueError:
+            tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
+
+    # File number prompts with re-prompt on invalid/duplicate
+    picked_indices = set()
+    for k in range(1, count + 1):
+        while True:
+            pick_str = tui_utils.prompt_box(f"File #{k}", f"Enter file number (1-{max_files})").strip()
+            if not pick_str:
+                tui_utils.display_inline("[yellow]Please enter a number.[/]")
+                continue
+            try:
+                pick = int(pick_str)
+                if pick < 1 or pick > max_files:
+                    tui_utils.display_inline(f"[red]Invalid file number. Choose between 1 and {max_files}.[/]")
+                elif pick in picked_indices:
+                    tui_utils.display_inline("[red]File already selected. Choose a different one.[/]")
+                else:
+                    picked_indices.add(pick)
+                    break
+            except ValueError:
+                tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
+
+    # Convert to 0-based indices for attachment.py
+    indices = [p - 1 for p in sorted(picked_indices)]
+    selected_context = attachment.get_subset_attachment_context(indices)
+
+    # Log selection
+    selected_names = [list(all_attachments.values())[i]['file_name'] for i in indices]
+    system_log("COMMAND", "INFO", f".BETTER using {len(indices)} attachment(s): {', '.join(selected_names)}")
+
+    return selected_context
+
+
 def better(question="", clien=None, answers=""):
+    # Select attachments at the start (before specialist choice)
+    attachment_context = select_better_attachments()
+
     tui_utils.display_table(
         ["#", "Specialist", "Expertise"],
         [
@@ -743,9 +817,6 @@ def better(question="", clien=None, answers=""):
         question = tui_utils.prompt_box("Your Request", "Describe your request clearly:").strip()
         if not question:
             return "No request provided. Try Again!"
-
-    # Get attachment context for specialists
-    attachment_context = attachment.get_combined_attachment_context()
 
     clients = {
         "openrouter" : client_or,
@@ -780,11 +851,11 @@ def better(question="", clien=None, answers=""):
             s_client = config['specialist']['reasoning']['secondary']['provider']
             if p_client not in clients or s_client not in clients:
                 return "Strategist models unavailable. Check config."
-            return strategist_flow(question, clients[p_client], clients[s_client])
+            return strategist_flow(question, clients[p_client], clients[s_client], attachment_context)
         case _:
             return "Invalid Option Selected! Try Again!"
 
-def strategist_flow(goal, p_client, s_client):
+def strategist_flow(goal, p_client, s_client, attachment_context=None):
     goal = goal.strip()
     if not goal:
         goal = input("Define your goal (structured, one response): ").strip()
@@ -792,7 +863,9 @@ def strategist_flow(goal, p_client, s_client):
     if not goal:
         return "No goal provided. Try again."
 
-    attachment_context = attachment.get_combined_attachment_context()
+    # Only auto-fetch all attachments if not explicitly provided
+    if attachment_context is None:
+        attachment_context = attachment.get_combined_attachment_context()
 
     system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
 

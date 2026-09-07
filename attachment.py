@@ -309,20 +309,42 @@ def has_attachments() -> bool:
     return len(_attachment_context) > 0
 
 
+def _format_attachments_context(attachments) -> str:
+    """Build the standard ATTACHED FILES CONTEXT block from an iterable of attachment dicts."""
+    if not attachments:
+        return ""
+    
+    parts = ["=== ATTACHED FILES CONTEXT ==="]
+    for attachment in attachments:
+        parts.append(f"\n--- {attachment['file_name']} ({attachment['file_type'].upper()}) ---")
+        parts.append(attachment['content'])
+    parts.append("\n=== END ATTACHED FILES CONTEXT ===")
+    return "\n".join(parts)
+
+
 def get_combined_attachment_context() -> str:
     """
     Get all attachment content combined into a single context string
     for use by other Solaris components (like .BETTER).
     """
-    if not _attachment_context:
+    return _format_attachments_context(_attachment_context.values())
+
+
+def get_subset_attachment_context(indices: list[int]) -> str:
+    """
+    Get combined context for a subset of attachments by their 0-based insertion-order indices.
+    Invalid indices are silently ignored. Returns empty string if no valid indices.
+    """
+    if not indices:
         return ""
     
-    parts = ["=== ATTACHED FILES CONTEXT ==="]
-    for abs_path, attachment in _attachment_context.items():
-        parts.append(f"\n--- {attachment['file_name']} ({attachment['file_type'].upper()}) ---")
-        parts.append(attachment['content'])
-    parts.append("\n=== END ATTACHED FILES CONTEXT ===")
-    return "\n".join(parts)
+    all_attachments = list(_attachment_context.values())
+    selected = []
+    for idx in indices:
+        if 0 <= idx < len(all_attachments):
+            selected.append(all_attachments[idx])
+    
+    return _format_attachments_context(selected)
 
 
 def get_attachments_for_vision() -> list:

@@ -18,13 +18,13 @@
     "vision_model" : {
 	"primary" : {	
 		"model" : "",
-		"provider" : "",
+		"provider" : ""
 	},
-	"secondary : {
+	"secondary" : {
 		"model" : "",
-		"provider" : "",
-	},
-    }
+		"provider" : ""
+	}
+    },
     "specialist": {
         "coding": {
             "primary": {
