@@ -40,3 +40,6 @@ System_Logs.txt
 *.jpeg
 *.jpg
 *.png
+
+# AGENTS file
+AGENTS.md
