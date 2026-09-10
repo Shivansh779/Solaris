@@ -8,7 +8,6 @@
 ![Ollama](https://img.shields.io/badge/Offline-Ollama-black)
 ![Voice](https://img.shields.io/badge/Voice-Supported-success)
 ![Memory](https://img.shields.io/badge/Memory-Persistent-blueviolet)
-![Vision](https://img.shields.io/badge/Vision-NVIDIA-NIM-blue)
 ![Status](https://img.shields.io/badge/Status-Active%20Development-blue)
 
 
