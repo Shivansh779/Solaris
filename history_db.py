@@ -6,18 +6,9 @@ from _log import system_log, current_time
 DB_PATH = "database.db"
 
 def get_conn ():
-    return sqlite3.connect(DB_PATH)
-
-def enable_foreign_key ():
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-    PRAGMA foreign_keys = ON;
-    """)
-    conn.commit()
-    system_log("DATABASE", "INFO", "Foreign key enabled.")
-    cursor.close()
-    conn.close()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 def create_table():
     conn = get_conn()

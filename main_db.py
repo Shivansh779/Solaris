@@ -17,7 +17,11 @@ def create_table():
                 user_id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
                 prefers TEXT NOT NULL,
-                about_user TEXT NOT NULL
+                about_user TEXT NOT NULL,
+                is_private INTEGER NOT NULL DEFAULT 0,   --0 = Public, 1 = Private
+                password TEXT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,    --0 = Inactive, 1 = Active
+                activation_code TEXT NULL
             );
         """
     )

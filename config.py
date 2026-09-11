@@ -20,6 +20,12 @@ def init_client(provider: str):
     if not cfg:
         raise ValueError(f"Unknown provider: {provider}")
     api_key = os.getenv(cfg["api_key_env"])
+    if not api_key:
+        raise RuntimeError(
+            f"Provider '{provider}' needs the {cfg['api_key_env']} environment "
+            "variable set (see README.md). Add it to your .env file: "
+            f"{cfg['api_key_env']}=..."
+        )
     if cfg["base_url"]:
         return cfg["client_class"](api_key=api_key, base_url=cfg["base_url"])
     return cfg["client_class"](api_key=api_key)

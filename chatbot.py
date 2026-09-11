@@ -56,7 +56,6 @@ from _log import system_log, current_time
 
 # Create the tables for the Database
 main_db.create_table()
-history_db.enable_foreign_key()
 history_db.create_table()
 system_log("SYSTEM", "INFO", "Application database tables initialized.")
 

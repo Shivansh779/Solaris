@@ -11,7 +11,7 @@ __pycache__/
 
 # Testing
 .pytest_cache/
-tests/
+Test/
 test_attach.md
 test_attach.pdf
 test_attach.jpg
