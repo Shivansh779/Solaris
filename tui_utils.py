@@ -1,21 +1,18 @@
 from datetime import datetime
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
-from rich.columns import Columns
+from rich.table import Table
 from rich import box
 from rich.rule import Rule
 from rich.style import Style
 from rich.markdown import Markdown
 from rich.prompt import Prompt
-from rich.console import Group
 from rich.text import Text
 from rich.theme import Theme
-from markdown_it import MarkdownIt
+
+from _log import system_log, current_time
 
 console = Console()
-
-MARKDOWN_IT = MarkdownIt("commonmark", {"html": False}).enable("table")
 
 # Distinct color emphasis so bold/italic/headings stand out in the terminal.
 MARKDOWN_THEME = Theme(
@@ -30,17 +27,6 @@ MARKDOWN_THEME = Theme(
         "markdown.h6": "dim",
     }
 )
-
-
-# Logging Function Definition
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-
-# Current Time Function
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 STYLES = {
@@ -133,100 +119,20 @@ def display_compare(content):
 # Markdown-aware rendering for AI responses
 # ---------------------------------------------------------------------------
 
-def _split_markdown_table(content):
-    """Split Markdown text into (kind, block) segments, isolating markdown
-    tables so they can be rendered as terminal-native Rich tables."""
-    lines = content.split("\n")
-    tokens = MARKDOWN_IT.parse(content)
-
-    ranges = [tuple(t.map) for t in tokens if t.type == "table_open" and t.map]
-
-    segments = []
-    pos = 0
-    for start, end in ranges:
-        if pos < start:
-            segments.append(("text", "\n".join(lines[pos:start])))
-        segments.append(("table", "\n".join(lines[start:end])))
-        pos = end
-    if pos < len(lines):
-        segments.append(("text", "\n".join(lines[pos:])))
-    return segments
-
-
-def _parse_table_block(block):
-    lines = [ln.strip() for ln in block.strip().split("\n") if ln.strip()]
-
-    def split_cells(line):
-        line = line.strip()
-        if line.startswith("|"):
-            line = line[1:]
-        if line.endswith("|"):
-            line = line[:-1]
-        return [cell.strip() for cell in line.split("|")]
-
-    header = split_cells(lines[0])
-    rows = [split_cells(ln) for ln in lines[2:]]
-    return header, rows
-
-
-def _table_to_rich(header, rows, title=None):
-    table = Table(
-        title=title,
-        box=box.ROUNDED,
-        title_style="bold bright_cyan",
-        header_style="bold bright_cyan",
-        show_edge=True,
-        pad_edge=True,
-        expand=True,
-    )
-    for i, heading in enumerate(header):
-        header_style = "bold bright_cyan"
-        table.add_column(str(heading), overflow="fold", no_wrap=False, header_style=header_style)
-    for row in rows:
-        row = [str(c) for c in row]
-        if len(row) < len(header):
-            row += [""] * (len(header) - len(row))
-        rendered = [Markdown(cell, justify="left") if _has_inline_markdown(cell) else cell
-                    for cell in row[: len(header)]]
-        table.add_row(*rendered)
-    return table
-
-
-def _has_inline_markdown(cell):
-    return any(marker in cell for marker in ("**", "__", "*", "_", "`"))
-
-
-def _markdown_text(text):
-    """Escape stray HTML that Rich's Markdown renderer would otherwise parse."""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
 def render_markdown(content):
-    """Convert AI Markdown content (headings, lists, blockquotes, code and
-    tables) into a list of Rich renderables."""
-    renderables = []
-    for kind, block in _split_markdown_table(content):
-        if kind == "table":
-            header, rows = _parse_table_block(block)
-            renderables.append(_table_to_rich(header, rows))
-        else:
-            block = _markdown_text(block)
-            if block.strip():
-                renderables.append(Markdown(block, justify="left"))
-    return renderables
+    """Convert AI Markdown content into a list of Rich renderables."""
+    return [Markdown(content, justify="left")]
 
 
 def display_markdown(content, title="Solaris", subtitle=None):
-    """Render AI Markdown (including tables) inside a readable panel."""
+    """Render AI Markdown inside a readable panel."""
     system_log("AI", "INFO", f"Displaying rendered content: {title}")
-    renderables = render_markdown(content)
-    content_group = Group(*renderables) if renderables else Text()
     console.print()
     console.push_theme(MARKDOWN_THEME)
     try:
         console.print(
             Panel(
-                content_group,
+                Markdown(content, justify="left"),
                 title=title,
                 subtitle=subtitle,
                 border_style="bright_cyan",

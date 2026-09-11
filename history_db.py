@@ -1,12 +1,7 @@
 import sqlite3
 from datetime import datetime
 
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+from _log import system_log, current_time
 
 DB_PATH = "database.db"
 

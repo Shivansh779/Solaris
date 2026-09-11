@@ -30,64 +30,48 @@
             "primary": {
                 "name": "kimi-k2.7-code",
                 "role": "coder",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "gpt-oss:120b",
                 "role": "coder",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             }
         },
         "writing": {
             "primary": {
                 "name": "gpt-oss:20b",
                 "role": "writer",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "gemma4:31b",
                 "role": "writer",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             }
         },
         "reasoning": {
             "primary": {
                 "name": "qwen3.5:397b",
                 "role": "strategist",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "nemotron-3-super",
                 "role": "strategist",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             }
         },
         "study": {
             "primary": {
                 "name": "nemotron-3-ultra",
                 "role": "study",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "nemotron-3-super",
                 "role": "study",
-                "provider": "ollama-cloud",
-                "times_used": 0,
-                "times_satisfied": 0
+                "provider": "ollama-cloud"
             }
         }
     }

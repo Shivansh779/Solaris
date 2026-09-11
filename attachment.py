@@ -327,23 +327,6 @@ def get_combined_attachment_context() -> str:
     return _format_attachments_context(_attachment_context.values())
 
 
-def get_subset_attachment_context(indices: List[int]) -> str:
-    """
-    Get combined context for a subset of attachments by their 0-based insertion-order indices.
-    Invalid indices are silently ignored. Returns empty string if no valid indices.
-    """
-    if not indices:
-        return ""
-
-    all_attachments = list(_attachment_context.values())
-    selected = []
-    for idx in indices:
-        if 0 <= idx < len(all_attachments):
-            selected.append(all_attachments[idx])
-
-    return _format_attachments_context(selected)
-
-
 def get_attachments_for_vision() -> List[Dict[str, Any]]:
     """
     Get attachments that are images, formatted for vision-capable models.
@@ -358,25 +341,3 @@ def get_attachments_for_vision() -> List[Dict[str, Any]]:
                 'metadata': attachment['metadata'],
             })
     return vision_attachments
-
-
-def get_subset_vision_attachments(indices: List[int]) -> List[Dict[str, Any]]:
-    """
-    Get vision-formatted attachments for a subset by 0-based insertion-order indices.
-    Only includes image types (jpeg, png). Invalid indices ignored.
-    """
-    if not indices:
-        return []
-
-    all_attachments = list(_attachment_context.values())
-    result = []
-    for idx in indices:
-        if 0 <= idx < len(all_attachments):
-            att = all_attachments[idx]
-            if att['file_type'] in ('jpeg', 'png'):
-                result.append({
-                    'path': att['file_path'],
-                    'mime_type': att['metadata'].get('mime_type', 'image/jpeg'),
-                    'metadata': att['metadata'],
-                })
-    return result

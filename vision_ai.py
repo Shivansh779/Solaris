@@ -2,7 +2,6 @@
 
 import base64
 import json
-from datetime import datetime
 import os
 from typing import List, Dict, Any
 
@@ -11,14 +10,7 @@ try:
 except Exception:
     genai_types = None
 
-
-def system_log(category: str, level: str, message: str) -> None:
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-
-def current_time() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+from _log import system_log, current_time
 
 
 def _build_vision_prompt(question: str, num_images: int) -> str:
