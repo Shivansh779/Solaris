@@ -1,28 +1,14 @@
 import sqlite3
 from datetime import datetime
 
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+from _log import system_log, current_time
 
 DB_PATH = "database.db"
 
 def get_conn ():
-    return sqlite3.connect(DB_PATH)
-
-def enable_foreign_key ():
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-    PRAGMA foreign_keys = ON;
-    """)
-    conn.commit()
-    system_log("DATABASE", "INFO", "Foreign key enabled.")
-    cursor.close()
-    conn.close()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
 
 def create_table():
     conn = get_conn()

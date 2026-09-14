@@ -270,6 +270,9 @@ Create a .env file in the project root.
 GEMINI_API_KEY="your_gemini_api_key"
 OR_API_KEY="your_openrouter_api_key"
 OR_ASSIST_API_KEY="your_openrouter_helper_api_key"
+NVIDIA_API_KEY="your_nvidia_api_key"
+GROQ_API_KEY="your_groq_api_key"
+OLLAMA_CLOUD_API_KEY="your_ollama_cloud_api_key"
 TAVILY_API_KEY="your_tavily_api_key"
 FIRECRAWL_API_KEY="your_firecrawl_api_key"
 ```
@@ -281,6 +284,9 @@ FIRECRAWL_API_KEY="your_firecrawl_api_key"
 |GEMINI_API_KEY	|Primary Gemini chat requests
 |OR_API_KEY	| OpenRouter fallback chat
 |OR_ASSIST_API_KEY	| Preference and memory summarization
+|NVIDIA_API_KEY	| NVIDIA NIM vision and chat providers
+|GROQ_API_KEY	| Groq chat provider
+|OLLAMA_CLOUD_API_KEY	| Ollama cloud chat provider
 |TAVILY_API_KEY	| Primary web search provider for the `.WEB` command
 |FIRECRAWL_API_KEY	| Fallback web search provider for the `.WEB` command
 

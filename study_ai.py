@@ -1,20 +1,10 @@
-from datetime import datetime
 import json
 
-
-# Logging Function Definition
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
+from _log import system_log, current_time
 
 
-# Current Time Function
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def build_detail_prompt(topic):
-    return f"""You are an expert teacher explaining a concept to a student. Explain the following topic in great detail, as if you are teaching a class.
+PROMPT_TEMPLATES = {
+    "detail": """You are an expert teacher explaining a concept to a student. Explain the following topic in great detail, as if you are teaching a class.
 
 ## Topic: {topic}
 
@@ -39,11 +29,8 @@ Organize your response with clear section headings. Cover:
 7. Advanced considerations (deeper layers for those who want to go further)
 
 Topic: {topic}
-"""
-
-
-def build_simple_prompt(topic):
-    return f"""You are a friendly teacher explaining a concept simply. Explain the following topic in plain, everyday language without losing any depth or accuracy.
+""",
+    "simple": """You are a friendly teacher explaining a concept simply. Explain the following topic in plain, everyday language without losing any depth or accuracy.
 
 ## Topic: {topic}
 
@@ -65,11 +52,8 @@ Organize your response with clear sections. For each section:
 - Summarize in a sentence
 
 Topic: {topic}
-"""
-
-
-def build_quiz_prompt(topic):
-    return f"""You are a quiz master creating educational questions. Generate exactly 10 high-quality multiple-choice questions about the following topic.
+""",
+    "quiz": """You are a quiz master creating educational questions. Generate exactly 10 high-quality multiple-choice questions about the following topic.
 
 ## Topic: {topic}
 
@@ -94,11 +78,8 @@ Answer: B — Brief explanation of why B is correct
 ...continue through all 10 questions.
 
 Topic: {topic}
-"""
-
-
-def build_timeline_prompt(topic):
-    return f"""You are a historian organizing events chronologically. Present the key events related to the following topic in strict chronological order.
+""",
+    "timeline": """You are a historian organizing events chronologically. Present the key events related to the following topic in strict chronological order.
 
 ## Topic: {topic}
 
@@ -117,11 +98,8 @@ def build_timeline_prompt(topic):
 - Event: Description (significance)
 
 Topic: {topic}
-"""
-
-
-def build_compare_prompt(topic):
-    return f"""You are an analyst creating a side-by-side comparison. Compare the following subjects across multiple dimensions.
+""",
+    "compare": """You are an analyst creating a side-by-side comparison. Compare the following subjects across multiple dimensions.
 
 ## Topic: {topic}
 
@@ -144,11 +122,8 @@ Use a table format like:
 End with a brief verdict: which is better and in what context.
 
 Topic: {topic}
-"""
-
-
-def build_steps_prompt(topic):
-    return f"""You are a guide breaking down a process into clear steps. Present the following topic as a sequential list of actionable steps.
+""",
+    "steps": """You are a guide breaking down a process into clear steps. Present the following topic as a sequential list of actionable steps.
 
 ## Topic: {topic}
 
@@ -168,7 +143,13 @@ Step 3: Action — Explanation
 ...
 
 Topic: {topic}
-"""
+""",
+}
+
+
+def build_prompt(topic, mode):
+    template = PROMPT_TEMPLATES.get(mode, PROMPT_TEMPLATES["detail"])
+    return template.format(topic=topic)
 
 
 def study(topic, p_client, s_client, mode):
@@ -182,16 +163,7 @@ def study(topic, p_client, s_client, mode):
     secondary_model = config_data["specialist"]["study"]["secondary"]["name"]
     secondary_provider = config_data["specialist"]["study"]["secondary"]["provider"]
 
-    prompts = {
-        "detail": build_detail_prompt(topic),
-        "simple": build_simple_prompt(topic),
-        "quiz": build_quiz_prompt(topic),
-        "timeline": build_timeline_prompt(topic),
-        "compare": build_compare_prompt(topic),
-        "steps": build_steps_prompt(topic),
-    }
-
-    prompt = prompts.get(mode, build_detail_prompt(topic))
+    prompt = build_prompt(topic, mode)
 
     def call(client, provider, model, label):
         if provider == "google":

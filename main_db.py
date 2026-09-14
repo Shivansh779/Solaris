@@ -1,14 +1,7 @@
 import sqlite3
-import secrets
-import string
 from datetime import datetime
 
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+from _log import system_log, current_time
 
 DB_PATH = 'database.db'
 
@@ -37,109 +30,12 @@ def create_table():
     cursor.close()
     conn.close()
 
-def activation_code (grp_length=5):
-    digits = string.digits
-    pass_1 = ''.join(secrets.choice(digits) for _ in range(grp_length))
-    pass_2 = ''.join(secrets.choice(digits) for _ in range(grp_length))
-    code = pass_1 + '-' + pass_2
-    return code
-
-def deactivate_user (user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    code = activation_code()
-    cursor.execute(
-        """
-            UPDATE user_data SET is_active = 0, activation_code = ? WHERE user_id = ?;
-        """, (code, user_id)
-    )
-    conn.commit()
-    system_log("DATABASE", "INFO", f"Updated user profile as inactive for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-    return code
-
-def rename_user (user_id, new_name):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE user_data SET name = ? WHERE user_id = ?;
-    """, (new_name, user_id)
-    )
-    system_log("DATABASE", "INFO", f"Updated user profile as renamed for user_id={user_id}.")
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-def activate_user (user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            UPDATE user_data SET is_active = 1, activation_code = NULL WHERE user_id = ?;
-        """, (user_id,)
-    )
-    conn.commit()
-    system_log("DATABASE", "INFO", f"Updated user profile as active for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-
-def fetch_activation_code (user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            SELECT activation_code FROM user_data WHERE user_id = ?;
-        """, (user_id,)
-    )
-    data = cursor.fetchone()
-    system_log("DATABASE", "INFO", f"Retrieved activation code status for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-    return data[0] if data else 0
-
-def generate_numeric_password(length=8):
-    # string.digits provides the string '0123456789'
-    digits = string.digits
-
-    # Securely select random digits and join them together
-    password = ''.join(secrets.choice(digits) for _ in range(length))
-    return str(password)
-
-def fetch_privacy_setting (user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            SELECT is_private FROM user_data WHERE user_id =?;
-        """, (user_id,)
-    )
-    data = cursor.fetchone()
-    system_log("DATABASE", "INFO", f"Retrieved privacy setting for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-    return data[0] if data else 0
-
-def fetch_password(user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            SELECT password FROM user_data WHERE user_id = ?;
-        """, (user_id,)
-    )
-    data = cursor.fetchone()
-    system_log("DATABASE", "INFO", f"Retrieved password status for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-    return data[0] if data else 0
-
 def check_existing ():
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
         """
-            SELECT user_id, name, is_private, is_active FROM user_data ORDER BY user_id ASC;
+            SELECT user_id, name FROM user_data ORDER BY user_id ASC;
         """
     )
     data = cursor.fetchall()
@@ -163,22 +59,14 @@ def get_data (user_id):
     conn.close()
     return data
 
-def new_user (name, preference, is_private, about_user):
+def new_user (name, preference, about_user):
     conn = get_conn()
     cursor = conn.cursor()
-    if is_private == 1:
-        pwd = generate_numeric_password()
-        cursor.execute(
-            """
-                INSERT INTO user_data (name, prefers, is_private, password, about_user) VALUES(?, ?, ?, ?, ?);
-            """, (name, preference, is_private, pwd, about_user)
-        )
-    else:
-        cursor.execute(
-            """
-                INSERT INTO user_data (name, prefers, about_user) VALUES (?, ?, ?);
-            """, (name, preference, about_user)
-        )
+    cursor.execute(
+        """
+            INSERT INTO user_data (name, prefers, about_user) VALUES (?, ?, ?);
+        """, (name, preference, about_user)
+    )
     conn.commit()
     user_id = cursor.lastrowid
     system_log("DATABASE", "INFO", f"Inserted new user profile with user_id={user_id}.")
@@ -196,25 +84,6 @@ def update_user_pref (user_id, preference):
     )
     conn.commit()
     system_log("DATABASE", "INFO", f"Updated preferences for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-
-def update_privacy (user_id, privacy):
-    conn = get_conn()
-    cursor = conn.cursor()
-    if privacy == 0:
-        cursor.execute("""
-            UPDATE user_data SET is_private = ?, password = NULL WHERE user_id = ?;
-        """, (privacy, user_id)
-        )
-    else:
-        pwd = generate_numeric_password()
-        cursor.execute("""
-            UPDATE user_data SET is_private = ?, password = ? WHERE user_id = ?;
-        """, (privacy, pwd, user_id)
-        )
-    conn.commit()
-    system_log("DATABASE", "INFO", f"Updated privacy settings for user_id={user_id}.")
     cursor.close()
     conn.close()
 
@@ -243,17 +112,3 @@ def fetch_user_id (name):
     cursor.close()
     conn.close()
     return data
-
-def fetch_status (user_id):
-    conn = get_conn()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-            SELECT is_active FROM user_data WHERE user_id = ?;
-        """, (user_id,)
-    )
-    data = cursor.fetchone()
-    system_log("DATABASE", "INFO", f"Retrieved active status for user_id={user_id}.")
-    cursor.close()
-    conn.close()
-    return data[0] if data else 1

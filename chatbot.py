@@ -12,7 +12,6 @@ import asyncio
 import edge_tts
 from kittentts import KittenTTS
 from playsound3 import playsound
-from datetime import datetime
 import ollama
 import time
 import sys
@@ -21,6 +20,28 @@ import json
 import subprocess
 from spinner import Spinner, RecordingTimer
 import config
+
+SPINNER_TEXTS = [
+    "Thinking...",
+    "Reasoning...",
+    "Recalling memories...",
+    "Building response...",
+    "Connecting ideas...",
+    "Analyzing context...",
+    "Writing reply...",
+    "Consulting the specialist...",
+    "Fetching expert insight...",
+    "Summoning domain knowledge...",
+    "Analyzing with precision...",
+    "Crafting specialist response...",
+    "Searching the web...",
+    "Synthesizing sources...",
+]
+
+def get_spinner(message_list=None):
+    """Return a Spinner with a random message from the given list or default SPINNER_TEXTS."""
+    messages = message_list if message_list is not None else SPINNER_TEXTS
+    return Spinner(random.choice(messages))
 
 import main_db
 import history_db
@@ -31,18 +52,10 @@ import tui_utils
 import attachment
 import vision_ai
 
-# Logging Function Definition
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-# Current Time Function
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+from _log import system_log, current_time
 
 # Create the tables for the Database
 main_db.create_table()
-history_db.enable_foreign_key()
 history_db.create_table()
 system_log("SYSTEM", "INFO", "Application database tables initialized.")
 
@@ -129,233 +142,55 @@ print("""╭──────────────────────�
 Profiles
 """)
 
-for user in main_db.check_existing():
-    if user[2] == 1 and user[3] == 0:
-        print(f"{user[0]}: {user[1]} (Private & Inactive)")
-    elif user[2] == 1:
-        print(f"{user[0]}: {user[1]} (Private)")
-    elif user[3] == 0:
-        print(f"{user[0]}: {user[1]} (Inactive)")
-    else:
-        print(f"{user[0]}: {user[1]}")
+profiles = main_db.check_existing()
+for user in profiles:
+    print(f"{user[0]}: {user[1]}")
 
-existing = input("""
-Commands
+print("""
+Commands:
+N          - New Profile
+<ID>       - Select Profile
+/exit      - Exit
+""")
 
-N               New Profile
-<ID>.update     Update
-<ID>.rename     Rename
-<ID>.activate   Activate
-<ID>.deactivate Deactivate
-/exit           Exit
-
-Profile -> """
-).strip().lower()
-
-existing = existing.split(".")
-
-if not existing[0]:
-    print("Please enter a valid option.")
-    sys.exit()
+choice = input("Profile -> ").strip().lower()
 
 current_user_id = None
 
-# Exitting the Application
-if "/exit" in existing:
+if choice == "/exit":
     system_log("SYSTEM", "INFO", "Application exited from profile selection.")
     print("Goodbye! Have a Great Day!")
     sys.exit()
 
-# New Profile
-elif existing[0] in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
+elif choice in ['n', 'no', 'nope', 'nah', 'nahh', 'negative']:
     name = input("Enter your name: ")
     preference = input("Enter a description of how you want the AI to behave: ")
     about_user = input("Tell Solaris about yourself (prefer to keep it in 50 words): ")
-    privacy_setting = input("Do you want it to be a Private Profile? (Y/N) ")
-    if privacy_setting == "Y"  or privacy_setting == "y":
-        is_private = 1
-        print("Your Profile is Private.")
-    else:
-        is_private = 0
-        print("Your Profile is Public")
     processed_pref = helper_ai.summarise_pref(preference)
     processed_about = helper_ai.summarise_about(about_user)
-    current_user_id = main_db.new_user(name, processed_pref, is_private, processed_about)
+    current_user_id = main_db.new_user(name, processed_pref, processed_about)
     system_log("PROFILE", "INFO", f"Created new profile with user_id={current_user_id}.")
     preference = processed_pref
     about_user = processed_about
-    if is_private == 1:
-        print(f"Your Profile Password: {main_db.fetch_password(current_user_id)}\nKindly Save your Password to access your profile in future!")
 
-# Private Profiles
-elif (len(existing) < 2 and main_db.fetch_privacy_setting(existing[0]) == 1
-      and main_db.fetch_status(existing[0]) == 1):
-    system_log("PROFILE", "INFO", f"Private profile login requested for user_id={existing[0]}.")
-    password = main_db.fetch_password(existing[0])
-    attempts = 3
-    while attempts > 0:
-        user_password = input("Enter your password: ")
-        if user_password == password:
-            print("Acces Granted!")
-            system_log("PROFILE", "INFO", f"Private profile access granted for user_id={existing[0]}.")
-            data = main_db.get_data(existing[0])
-            preference = data[0]
-            name = data[1]
-            about_user = data[2]
-            current_user_id = int(existing[0])
-            break
-        else:
-            attempts -= 1
-            system_log("PROFILE", "WARNING", f"Invalid private profile password attempt for user_id={existing[0]}.")
-            print("Invalid password Try Again!")
-    else:
-        system_log("PROFILE", "ERROR", f"Private profile access failed after maximum attempts for user_id={existing[0]}.")
-        print("Too many attempts failed!\nRestarting Application...")
-        sys.exit()
-
-elif (len(existing) > 1 and existing[1] == "update" and main_db.fetch_privacy_setting(existing[0]) == 1
-      and main_db.fetch_status(existing[0]) == 1):
-    system_log("PROFILE", "INFO", f"Private profile update requested for user_id={existing[0]}.")
-    password = main_db.fetch_password(existing[0])
-    attempts = 3
-    while attempts > 0:
-        user_password = input("Enter your password: ")
-        if user_password == password:
-            print("Acces Granted!")
-            system_log("PROFILE", "INFO", f"Private profile update access granted for user_id={existing[0]}.")
-            print("Updating Private Profile!")
-            preference = input("Enter the new description of how you want the AI to behave: ")
-            processed_pref = helper_ai.summarise_pref(preference)
-            main_db.update_user_pref(int(existing[0]), processed_pref)
-            system_log("PROFILE", "INFO", f"Private profile preferences updated for user_id={existing[0]}.")
-            preference = processed_pref
-            current_user_id = int(existing[0])
-            data = main_db.get_data(existing[0])
-            preference = data[0]
-            name = data[1]
-            about_user = data[2]
-            current_user_id = int(existing[0])
-            break
-        else:
-            attempts -= 1
-            system_log("PROFILE", "WARNING", f"Invalid password attempt during private profile update for user_id={existing[0]}.")
-            print(f"Invalid password!\n\nAttempts Remaining: {attempts}")
-    else:
-        system_log("PROFILE", "ERROR", f"Private profile update failed after maximum attempts for user_id={existing[0]}.")
-        print("Too many attempts failed!\nRestarting Application...")
-        sys.exit()
-
-# Public Profiles
-elif len(existing) > 1 and existing[1] == "update" and main_db.fetch_status(existing[0]) == 1:
-    system_log("PROFILE", "INFO", f"Public profile update requested for user_id={existing[0]}.")
-    choice = int(input("\n\n1. Update Preferences\n2. Update the Description About Yourself\nEnter Choice: "))
-    if choice == 1:
-        current_pref = main_db.get_data(existing[0])[0]
-        print("Current Preference\n" + str(current_pref))
-        preference = input("Enter the new description of how you want the AI to behave: ")
-        processed_pref = helper_ai.summarise_pref(preference)
-        main_db.update_user_pref(int(existing[0]), processed_pref)
-        system_log("PROFILE", "INFO", f"Public profile preferences updated for user_id={existing[0]}.")
-    elif choice == 2:
-        current_about = main_db.get_data(existing[0])[2]
-        print("Current About Yourself:\n" + str(current_about))
-        about_user = input("Tell Solaris About ourself in 50 words: ")
-        processed_about = helper_ai.summarise_pref(about_user)
-        main_db.update_about_user(processed_about, existing[0])
-        system_log("PROFILE", "INFO", f"Public profile about user_id={existing[0]} has been updated.")
-
-    current_user_id = int(existing[0])
-    data = main_db.get_data(current_user_id)
-    name = data[1]
-    preference = data[0]
-    about_user = data[2]
-
-elif len(existing) < 2 and main_db.fetch_status(existing[0]) == 1:
+else:
     try:
-        existing = int(existing[0])
-        data = main_db.get_data(existing)
+        selected_id = int(choice)
+        profile_ids = [p[0] for p in profiles]
+        if selected_id not in profile_ids:
+            system_log("PROFILE", "ERROR", f"Invalid profile ID selected: {selected_id}")
+            print("Invalid Profile ID!")
+            sys.exit()
+        data = main_db.get_data(selected_id)
         preference = data[0]
         name = data[1]
         about_user = data[2]
-        current_user_id = existing
+        current_user_id = selected_id
         system_log("PROFILE", "INFO", f"Profile selected with user_id={current_user_id}.")
-    except Exception as e:
-        system_log("PROFILE", "ERROR", f"Invalid profile selection failed: {e}")
-        print("Invalid profile ID")
+    except ValueError:
+        system_log("SYSTEM", "WARNING", "Invalid profile menu option selected.")
+        print("Invalid Option Selected!")
         sys.exit()
-
-# Profile Deactivation
-elif len(existing) > 1 and existing[1] == "deactivate" and main_db.fetch_status(existing[0]) == 1:
-    user_id = int(existing[0])
-    system_log("PROFILE", "INFO", f"Profile deactivation requested for user_id={user_id}.")
-    message = """==========================
-Deactivate Profile
-==========================
-This profile will become inactive.
-• It will no longer be usable until activated.
-• Your memories and preferences will be preserved.
-• An unique Activation Code will be generated, every time the profile is deactivated.
-• The previous Activation Code (if any) will become invalid.
-
-Note:
-If you plan to continue using this profile regularly,
-consider making it Private instead. A private profile
-uses a short PIN, while an inactive profile requires a
-new Activation Code every time it is deactivated.
-
-Do you wish to deactiate the profile? (Y/N) """
-    confirmation = input(message)
-    if confirmation == "Y" or confirmation == "y":
-        print("Deactivating Profile...")
-        activation_code = main_db.deactivate_user(user_id)
-        system_log("PROFILE", "INFO", f"Profile deactivated for user_id={user_id}.")
-        print("Profile Deactivated!")
-        print(f"Your Activation Code: {activation_code}\nKindly Save it to later activate your profile.")
-        print("Kindly restart the application!")
-        sys.exit()
-    else:
-        system_log("PROFILE", "INFO", f"Profile deactivation cancelled for user_id={user_id}.")
-        print("Your Profile has not been activated! Kindly Restart the application!")
-
-# Profile Activation
-elif len(existing) > 1 and existing[1] == "activate" and main_db.fetch_status(existing[0]) == 0:
-    user_id = int(existing[0])
-    system_log("PROFILE", "INFO", f"Profile activation requested for user_id={user_id}.")
-    print("This profile is inactive.\n\nEnter the activation code to continue.")
-    stored_code = main_db.fetch_activation_code(existing[0])
-    attempts = 3
-    while attempts > 0:
-        code = input("Enter (in XXXXX-XXXXX format): ")
-        if code == stored_code:
-            print("Activating Profile...")
-            main_db.activate_user(user_id)
-            system_log("PROFILE", "INFO", f"Profile activated for user_id={user_id}.")
-            print("Profile Activated!")
-            print("Kindly restart the application!")
-            sys.exit()
-        else:
-            attempts -= 1
-            system_log("PROFILE", "WARNING", f"Invalid activation code attempt for user_id={user_id}.")
-            print(f"Invalid Activation Code!\n\nAttempts Remaining: {attempts}")
-    else:
-        system_log("PROFILE", "ERROR", f"Profile activation failed after maximum attempts for user_id={user_id}.")
-        print("Too Many Attempts! Restart Application to try again!")
-        sys.exit()
-    sys.exit()
-
-# Rename a Profile
-elif len(existing) > 1 and existing[1] == "rename":
-    new_name = input("Enter new name: ")
-    system_log("PROFILE", "INFO", f"Profile rename requested for user_id={existing[0]}. New Name: {new_name}.")
-    main_db.rename_user(existing[0], new_name)
-    print("Profile Rename! Restart Application to see changes.")
-    sys.exit()
-
-else:
-    system_log("SYSTEM", "WARNING", "Invalid profile menu option selected.")
-    print("Invalid Option Selected!")
-    print("Retry!")
-    sys.exit()
 
 # Important Function Definitions
 def ai_voice_manager(pref, response):
@@ -455,7 +290,6 @@ def show_help():
     tui_utils.display_inline("  .BETTER                - Get a better answer for a request.")
     tui_utils.display_inline("  .VOICE                 - To Change the Text-To-Speech model")
     tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
-    tui_utils.display_inline("  .UPDATE_PRIVACY        - To Update Privacy Settings")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
     tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg, png) as temporary context.")
     tui_utils.display_inline("  .DETACH                - Remove a file attachment (see attached list).")
@@ -496,10 +330,6 @@ def change_profile():
         system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
         print("Invalid Profile ID!")
         return
-    elif main_db.fetch_privacy_setting(changed_profile) == 1:
-        system_log("PROFILE", "WARNING", f"Blocked mid-session switch to private profile user_id={changed_profile}.")
-        print("Profile Number Entered is a Private Profile; Restart Application to Switch to\nthe Profile.")
-        return
     change_user_id(changed_profile)
     conv_history.clear()
     session_history.clear()
@@ -524,31 +354,6 @@ def change_voice():
             system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: EdgeTTs")
         else:
             system_log("VOICE", "INFO", "Text-To-Speech Model changed. Model: KittenTTS")
-
-def update_privacy():
-    print(f"Current Privacy Setting: {"Public" if main_db.fetch_privacy_setting(current_user_id) == 0 else "Private"}")
-    preference = input(f"Switch Privacy Setting to {"Public" if main_db.fetch_privacy_setting(current_user_id) == 1 else "Private"}? "
-          f"(Y/N) ")
-    if preference in ["Y", "y"]:
-        if main_db.fetch_privacy_setting(current_user_id) == 1:
-            attempts = 3
-            while attempts > 0:
-                password = input("Enter Password to change Privacy Settings: ")
-                if password == main_db.fetch_password(current_user_id):
-                    main_db.update_privacy(current_user_id,  0)
-                    break
-                else:
-                    attempts -= 1
-                    print(f"Invalid Password. Remaining Attempts: {attempts}")
-        else:
-            main_db.update_privacy(current_user_id, 1)
-            print("Privacy Settings Changed!")
-            print(f"Your Password is {main_db.fetch_password(current_user_id)}")
-    
-    elif preference in ['N', 'n']:
-        print("Private Settings Remain Unchanged")
-    else:
-        print("Invalid Choice")
 
 def clear():
     print("Clearing terminal window...")
@@ -648,60 +453,14 @@ def select_vision_attachments():
     if not images:
         return []
 
-    if len(images) == 1:
-        return images
-
-    rows = []
-    for idx, img in enumerate(images, start=1):
-        rows.append((str(idx), img['path']))
-
-    tui_utils.display_table(["#", "Image Path"], rows, title="Attached Images")
-
     while True:
-        yn = tui_utils.prompt_box("Use Image", "Use attached images for .VISION? (Y/N)").strip().lower()
+        yn = tui_utils.prompt_box("Use Images", "Use attached images for .VISION? (Y/N)").strip().lower()
         if yn in ("y", "yes"):
-            break
+            return images
         elif yn in ("n", "no"):
             return []
         else:
             tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
-
-    max_images = len(images)
-    while True:
-        count_str = tui_utils.prompt_box("Image Count", f"How many images? (1-{max_images})").strip()
-        if not count_str:
-            tui_utils.display_inline("[yellow]Please enter a number.[/]")
-            continue
-        try:
-            count = int(count_str)
-            if 1 <= count <= max_images:
-                break
-            else:
-                tui_utils.display_inline(f"[red]Choose between 1 and {max_images}.[/]")
-        except ValueError:
-            tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
-
-    picked = set()
-    for k in range(1, count + 1):
-        while True:
-            pick_str = tui_utils.prompt_box(f"Image #{k}", f"Enter image number (1-{max_images})").strip()
-            if not pick_str:
-                tui_utils.display_inline("[yellow]Please enter a number.[/]")
-                continue
-            try:
-                pick = int(pick_str)
-                if pick < 1 or pick > max_images:
-                    tui_utils.display_inline(f"[red]Choose between 1 and {max_images}.[/]")
-                elif pick in picked:
-                    tui_utils.display_inline("[red]Already selected. Choose a different one.[/]")
-                else:
-                    picked.add(pick)
-                    break
-            except ValueError:
-                tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
-
-    indices = [p - 1 for p in sorted(picked)]
-    return attachment.get_subset_vision_attachments(indices)
 
 
 def handle_vision(question=""):
@@ -750,7 +509,7 @@ def handle_vision(question=""):
         return
 
     try:
-        with specialist_spinner():
+        with get_spinner():
             response = vision_ai.vision(question, p_client, s_client, images)
     except Exception as e:
         system_log("COMMAND", "ERROR", f".VISION failed: {e}")
@@ -810,14 +569,7 @@ def handle_web(question=""):
     web_prompt = helper_ai.build_web_prompt(query, sources)
 
     try:
-        text = [
-            "Thinking...",
-            "Reasoning...",
-            "Synthesizing sources...",
-            "Building response...",
-            "Connecting ideas...",
-        ]
-        spinner = Spinner(random.choice(text))
+        spinner = get_spinner()
         response = ask_ai(web_prompt, spinner=spinner)
 
         if ai_voice_text == 'v':
@@ -841,84 +593,23 @@ def handle_web(question=""):
         system_log("SYSTEM", "ERROR", f"Unexpected error in web search response generation: {e}")
         print("An error occurred while processing the web search results.")
 
-def specialist_spinner():
-    return Spinner(random.choice([
-        "Consulting the specialist...",
-        "Fetching expert insight...",
-        "Summoning domain knowledge...",
-        "Analyzing with precision...",
-        "Crafting specialist response..."
-    ]))
+
 
 
 def select_better_attachments() -> str:
     """Prompt user to select which attached files .BETTER should use.
-    Returns combined context string for selected files, or empty string if none/no attachments."""
+    Returns combined context string for all files, or empty string if none/no attachments."""
     if not attachment.has_attachments():
         return ""
 
-    all_attachments = attachment.get_all_attachments()
-    rows = []
-    for idx, (abs_path, att) in enumerate(all_attachments.items(), start=1):
-        rows.append((str(idx), abs_path))
-
-    tui_utils.display_table(["#", "File Path"], rows, title="Attached Files")
-
-    # Y/N prompt with re-prompt on invalid
     while True:
         yn = tui_utils.prompt_box("Use Attached Files", "Use attached files for .BETTER? (Y/N)").strip().lower()
         if yn in ("y", "yes"):
-            break
+            return attachment.get_combined_attachment_context()
         elif yn in ("n", "no"):
             return ""
         else:
             tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
-
-    # Count prompt with re-prompt on invalid
-    max_files = len(all_attachments)
-    while True:
-        count_str = tui_utils.prompt_box("File Count", f"How many files to use? (1-{max_files})").strip()
-        if not count_str:
-            tui_utils.display_inline("[yellow]Please enter a number.[/]")
-            continue
-        try:
-            count = int(count_str)
-            if 1 <= count <= max_files:
-                break
-            else:
-                tui_utils.display_inline(f"[red]Invalid count. Choose between 1 and {max_files}.[/]")
-        except ValueError:
-            tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
-
-    # File number prompts with re-prompt on invalid/duplicate
-    picked_indices = set()
-    for k in range(1, count + 1):
-        while True:
-            pick_str = tui_utils.prompt_box(f"File #{k}", f"Enter file number (1-{max_files})").strip()
-            if not pick_str:
-                tui_utils.display_inline("[yellow]Please enter a number.[/]")
-                continue
-            try:
-                pick = int(pick_str)
-                if pick < 1 or pick > max_files:
-                    tui_utils.display_inline(f"[red]Invalid file number. Choose between 1 and {max_files}.[/]")
-                elif pick in picked_indices:
-                    tui_utils.display_inline("[red]File already selected. Choose a different one.[/]")
-                else:
-                    picked_indices.add(pick)
-                    break
-            except ValueError:
-                tui_utils.display_inline("[red]Invalid input. Please enter a number.[/]")
-
-    # Convert to 0-based indices for attachment.py
-    indices = [p - 1 for p in sorted(picked_indices)]
-    selected_context = attachment.get_subset_attachment_context(indices)
-
-    # Log selection
-    selected_names = [list(all_attachments.values())[i]['file_name'] for i in indices]
-    system_log("COMMAND", "INFO", f".BETTER using {len(indices)} attachment(s): {', '.join(selected_names)}")
-
-    return selected_context
 
 
 def better(question="", clien=None, answers=""):
@@ -957,7 +648,7 @@ def better(question="", clien=None, answers=""):
             p_client = config['specialist']['writing']['primary']['provider']
             s_client = config['specialist']['writing']['secondary']['provider']
             if p_client in clients and s_client in clients:
-                with specialist_spinner():
+                with get_spinner():
                     response = specialist_ai.writer(question, clients[p_client], clients[s_client], attachment_context)
                 tui_utils.display_markdown(response, title="✍️ The Writer")
                 return response
@@ -965,7 +656,7 @@ def better(question="", clien=None, answers=""):
             p_client = config['specialist']['coding']['primary']['provider']
             s_client = config['specialist']['coding']['secondary']['provider']
             if p_client in clients and s_client in clients:
-                with specialist_spinner():
+                with get_spinner():
                     response = specialist_ai.coder(question, clients[p_client], clients[s_client], attachment_context)
                 tui_utils.display_markdown(response, title="💻 The Programmer")
                 return response
@@ -993,7 +684,7 @@ def strategist_flow(goal, p_client, s_client, attachment_context=None):
     system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
 
     print("\nSolaris is drafting its questions...")
-    with specialist_spinner():
+    with get_spinner():
         ai_questions = specialist_ai.questionaire(goal, p_client, s_client, attachment_context)
     tui_utils.display_markdown(ai_questions, title="🤖 Solaris Questions")
 
@@ -1002,7 +693,7 @@ def strategist_flow(goal, p_client, s_client, attachment_context=None):
         answers = "N/A"
 
     system_log("AI", "INFO", "Primary strategist drafting PRD.")
-    with specialist_spinner():
+    with get_spinner():
         draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers, attachment_context=attachment_context)
     previous_draft = None
 
@@ -1016,7 +707,7 @@ def strategist_flow(goal, p_client, s_client, attachment_context=None):
             system_log("AI", "INFO", "Strategist draft rejected; requesting an alternative from the secondary model.")
             print("\nSolaris is asking the secondary strategist for an alternative approach...")
             previous_draft = draft
-            with specialist_spinner():
+            with get_spinner():
                 draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
                                                  previous_draft=previous_draft, force_secondary=True, attachment_context=attachment_context)
         else:
@@ -1056,7 +747,6 @@ while True:
         ".CHANGE" : change_profile,
         ".VOICE" : change_voice,
         ".ABOUT" : show_about,
-        ".UPDATE_PRIVACY" : update_privacy,
         ".CLEAR" : clear,
         ".ATTACH" : attach,
         ".DETACH" : detach,
@@ -1129,7 +819,7 @@ while True:
             continue
 
         try:
-            with specialist_spinner():
+            with get_spinner():
                 response = study_ai.study(topic, p_client, s_client, study_mode)
         except Exception as e:
             system_log("COMMAND", "ERROR", f"Study command '{study_mode}' failed: {e}")
@@ -1201,16 +891,7 @@ while True:
         break
 
     try:
-        text = [
-            "Thinking...",
-            "Reasoning...",
-            "Recalling memories...",
-            "Building response...",
-            "Connecting ideas...",
-            "Analyzing context...",
-            "Writing reply..."
-        ]
-        spinner = Spinner(random.choice(text))
+        spinner = get_spinner()
         response = ask_ai(prompt, spinner=spinner)
 
         if ai_voice_text == 'v':

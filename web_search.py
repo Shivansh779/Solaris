@@ -4,14 +4,9 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 
+from _log import system_log, current_time
+
 load_dotenv()
-
-def system_log(category, level, message):
-    with open("System_Logs.txt", "a") as f:
-        f.write(f"[{level}] [{category}] [{current_time()}]: {message}\n")
-
-def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 with open("config.json", "r") as f:
     config = json.load(f)
