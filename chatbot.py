@@ -1,3 +1,4 @@
+import sys
 import platform
 import random
 import textwrap
@@ -14,12 +15,12 @@ from kittentts import KittenTTS
 from playsound3 import playsound
 import ollama
 import time
-import sys
 from textwrap import dedent
 import json
 import subprocess
 from spinner import Spinner, RecordingTimer
 import config
+import model_state
 
 SPINNER_TEXTS = [
     "Thinking...",
@@ -241,15 +242,31 @@ def ask_ai(prompt, spinner, models=None):
     return answer
 
 def ask_gemini(prompt, model=MODEL):
-    system_log("AI", "INFO", f"Using Gemini model: {model}.")
-    response = client_gem.models.generate_content(
-        model=model,
-        contents=prompt
-    )
-    return response.text
+    if not model_state.can_attempt(model):
+        system_log("AI", "INFO", f"Skipping unavailable Gemini model: {model}.")
+        raise RuntimeError(f"Gemini model unavailable for this session: {model}")
+    try:
+        system_log("AI", "INFO", f"Using Gemini model: {model}.")
+        response = client_gem.models.generate_content(
+            model=model,
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        state = model_state.classify_error(e)
+        if state == model_state.RATE_LIMIT or state == model_state.MODEL_UNAVAILABLE:
+            model_state.mark_unavailable(model)
+            system_log("AI", "WARNING", f"Gemini model disabled for this session: {model}. Error: {e}")
+        elif state == model_state.SERVICE_UNAVAILABLE:
+            model_state.mark_temporarily_unavailable(model)
+            system_log("AI", "WARNING", f"Gemini model cooling down {model_state.COOLDOWN_SECONDS}s: {model}. Error: {e}")
+        raise
 
 def ask_openrouter(prompt, spinner, models):
     for model in models:
+        if not model_state.can_attempt(model):
+            system_log("AI", "INFO", f"Skipping unavailable OpenRouter model: {model}.")
+            continue
         try:
             system_log("AI", "INFO", f"Using OpenRouter model: {model}.")
             response = client_or.chat.completions.create(
@@ -260,7 +277,15 @@ def ask_openrouter(prompt, spinner, models):
             )
             return response.choices[0].message.content
         except Exception as e:
-            system_log("AI", "WARNING", f"OpenRouter model failed: {model}. Error: {e}")
+            state = model_state.classify_error(e)
+            if state == model_state.RATE_LIMIT or state == model_state.MODEL_UNAVAILABLE:
+                model_state.mark_unavailable(model)
+                system_log("AI", "WARNING", f"OpenRouter model disabled for this session: {model}. Error: {e}")
+            elif state == model_state.SERVICE_UNAVAILABLE:
+                model_state.mark_temporarily_unavailable(model)
+                system_log("AI", "WARNING", f"OpenRouter model cooling down {model_state.COOLDOWN_SECONDS}s: {model}. Error: {e}")
+            else:
+                system_log("AI", "WARNING", f"OpenRouter model failed: {model}. Error: {e}")
             spinner.update_message(f"Cloud model unavailable: {model} ⚠️")
             time.sleep(0.7)
 
