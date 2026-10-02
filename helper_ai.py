@@ -440,7 +440,7 @@ def about(user_id, input, output, voice_model):
 ==========================================================================
                     About - Solaris
 ==========================================================================
-    Version        : 1.0.1
+    Version        : 1.2.1
     Developer      : Shivansh Singh
     Platform       : {system} {platform.release()}
     Languages      : Python {platform.python_version()}, SQLite3 ({sqlite3.sqlite_version}) 

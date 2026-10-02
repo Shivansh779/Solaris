@@ -1,6 +1,6 @@
 # Release Notes
 
-## 1.0.2 — Model error-state handling
+## 1.2.1 — Model error-state handling
 
 ### Added
 
@@ -61,7 +61,8 @@ fallback chain.
   the working tree before this change; the functional diff is confined to
   `ask_gemini()` and `ask_openrouter()`. Worth committing the normalisation on its
   own before merging.
-- `helper_ai.about()` still reports version `1.0.1`; the string is hardcoded and
-  was not bumped with this release note.
+- `helper_ai.about()` reports version `1.2.1`, bumped from the stale `1.0.1`. It is
+  a hardcoded string with no `__version__` constant behind it, so `.ABOUT` and this
+  file can drift apart again on a future release.
 - The wiring inside `ask_openrouter()`/`ask_gemini()` is not covered by the
   committed suite, only by `model_state` itself, for the import reason above.
