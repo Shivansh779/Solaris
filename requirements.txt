@@ -16,6 +16,7 @@ csvw==4.0.0
 ctranslate2==4.8.0
 distro==1.9.0
 dlinfo==2.0.0
+docopt==0.6.2
 edge-tts==7.2.8
 espeakng-loader==0.2.4
 faster-whisper==1.2.1
@@ -52,6 +53,7 @@ optype==0.17.1
 packaging==26.2
 phonemizer==3.3.0
 pillow==12.3.0
+pipreqs==0.4.13
 playsound3==3.3.1
 pluggy==1.6.0
 propcache==0.5.2
@@ -106,4 +108,5 @@ typing_extensions==4.15.0
 uritemplate==4.2.0
 urllib3==2.7.0
 websockets==16.0
+yarg==0.1.10
 yarl==1.24.2
