@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Solaris — Setup Wizard{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Setup Wizard</h1>
+  <p class="muted">Guided first-run setup: dependencies, the best local model for this machine, API keys, models and your profile.</p>
+</div>
+
+<ol class="steps" id="steps">
+  <li data-step="env" class="active">1. Environment</li>
+  <li data-step="local">2. Local AI</li>
+  <li data-step="web">3. Web search</li>
+  <li data-step="providers">4. Providers</li>
+  <li data-step="models">5. Models</li>
+  <li data-step="profile">6. Profile</li>
+  <li data-step="finish">7. Password</li>
+</ol>
+
+<section class="card step-panel" data-step="env">
+  <h2>Environment</h2>
+  <p class="muted small">Python in use: <code id="env-python">…</code></p>
+  <div id="env-missing" class="muted small">Checking packages…</div>
+  <div class="actions">
+    <button class="btn btn-primary" id="env-install">Install requirements</button>
+  </div>
+  <pre class="joblog" id="env-log" hidden></pre>
+</section>
+
+<section class="card step-panel" data-step="local" hidden>
+  <h2>Best local AI</h2>
+  <p class="muted small">Uses <a href="https://github.com/Andyyyy64/whichllm" target="_blank" rel="noopener">whichllm</a> to rank models that fit this machine, then saves your pick as the offline model.</p>
+  <div class="actions">
+    <button class="btn" id="whichllm-install">Install whichllm</button>
+    <button class="btn btn-primary" id="whichllm-run">Run whichllm</button>
+    <span class="muted small" id="whichllm-command"></span>
+  </div>
+  <pre class="joblog" id="whichllm-log" hidden></pre>
+  <div id="hw-info" class="muted small"></div>
+  <div class="table-wrap"><table class="table clickable" id="whichllm-table" hidden>
+    <thead><tr><th>#</th><th>Model</th><th>Quant</th><th>Speed</th><th>Fit</th><th>Score</th><th>License</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <label>Model name saved to config.json (edit if your Ollama tag differs)
+    <input id="local-model" type="text" placeholder="Qwen/Qwen3-4B-Thinking-2507">
+  </label>
+  <p class="muted small">After saving, pull it locally with <code id="ollama-hint">ollama run &lt;model&gt;</code>.</p>
+  <div class="actions">
+    <button class="btn btn-primary" id="save-local">Save local model</button>
+    <span class="muted small" id="local-status"></span>
+  </div>
+</section>
+
+<section class="card step-panel" data-step="web" hidden>
+  <h2>Web capabilities</h2>
+  <p class="muted small">Live web search (the <code>.WEB</code> command) uses Tavily first, Firecrawl as fallback. Both keys are optional — you can also add them later from chat.</p>
+  <label class="inline"><input type="radio" name="web-choice" value="yes" checked> Yes, set up web search now</label>
+  <label class="inline"><input type="radio" name="web-choice" value="no"> No, I'll do it when I first use <code>.WEB</code></label>
+  <div id="web-fields">
+    <label>Tavily API key <input id="tavily-key" type="password" autocomplete="off" placeholder="tvly-…"></label>
+    <label>Firecrawl API key <input id="firecrawl-key" type="password" autocomplete="off" placeholder="fc-…"></label>
+  </div>
+  <div class="actions">
+    <button class="btn btn-primary" id="save-web">Save keys</button>
+    <span class="muted small" id="web-status"></span>
+  </div>
+</section>
+
+<section class="card step-panel" data-step="providers" hidden>
+  <h2>Providers</h2>
+  <p class="muted small">Tick the providers you have accounts with and paste their API keys. They are written into <code>.env</code>.</p>
+  <div id="provider-list" class="provider-list"></div>
+  <div class="actions">
+    <button class="btn btn-primary" id="save-providers">Save provider keys</button>
+    <span class="muted small" id="providers-status"></span>
+  </div>
+</section>
+
+<section class="card step-panel" data-step="models" hidden>
+  <h2>Models</h2>
+  <p class="muted small">Fill in the model names your providers give you. Anything left unchanged keeps its current value.</p>
+  <div class="grid grid-2">
+    <div>
+      <label>Primary Gemini model <input id="w-gemini" type="text"></label>
+      <label>OpenRouter fallback chain (one per line)
+        <textarea id="w-openrouter" rows="5"></textarea>
+      </label>
+      <label>Local Ollama model <input id="w-local" type="text"></label>
+      <label>Assistant summariser model <input id="w-assist" type="text"></label>
+    </div>
+    <div>
+      <h3>Vision</h3>
+      <label>Primary model <input id="w-vision-p-model" type="text"></label>
+      <label>Primary provider <select id="w-vision-p-provider"></select></label>
+      <label>Secondary model <input id="w-vision-s-model" type="text"></label>
+      <label>Secondary provider <select id="w-vision-s-provider"></select></label>
+    </div>
+  </div>
+  <h3>Specialists</h3>
+  <div class="grid grid-2" id="w-specialist-grid"></div>
+  <div class="actions">
+    <button class="btn btn-primary" id="save-models">Save models</button>
+    <span class="muted small" id="models-status"></span>
+  </div>
+</section>
+
+<section class="card step-panel" data-step="profile" hidden>
+  <h2>Your profile</h2>
+  <p class="muted small">Solaris keeps one profile per person: a name, how you want it to behave, and a little about you.</p>
+  <div class="form-grid">
+    <label>Name <input id="p-name" type="text"></label>
+    <label>How should Solaris behave? <textarea id="p-preference" rows="3" placeholder="Friendly, concise, no fluff"></textarea></label>
+    <label>About you (optional) <textarea id="p-about" rows="3" placeholder="Student, learning Python, prefers short answers"></textarea></label>
+    <button class="btn btn-primary" id="save-profile">Create profile</button>
+    <span class="muted small" id="profile-status"></span>
+  </div>
+</section>
+
+<section class="card step-panel" data-step="finish" hidden>
+  <h2>Finish</h2>
+  <p class="muted small">Your 6-character API password is generated now. It is needed any time you add, change or remove an API key — including web keys added later from chat.</p>
+  <div class="actions">
+    <button class="btn btn-primary" id="finish-btn">Generate my password</button>
+  </div>
+  <div class="password-result" id="password-result" hidden></div>
+  <div class="actions">
+    <a class="btn btn-primary" href="/chat">Go to Chat</a>
+    <a class="btn" href="/">Home</a>
+  </div>
+</section>
+
+<div class="wizard-nav">
+  <button class="btn" id="prev-step">Back</button>
+  <button class="btn" id="next-step">Next</button>
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><h3 id="modal-title">Solaris</h3><button class="icon-btn" id="modal-close">✕</button></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='setup.js') }}"></script>
+{% endblock %}

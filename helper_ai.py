@@ -20,7 +20,13 @@ with open("settings.json", "r") as file:
 # Primary Summariser
 model = models["or_assist"]
 
-client_or = config.init_assist_or()
+# Guarded: the web interface starts even when a provider key is missing,
+# and falls back to Ollama inside _call_with_fallback.
+try:
+    client_or = config.init_assist_or()
+except Exception as e:
+    system_log("AI", "WARNING", f"OpenRouter assist client unavailable: {e}")
+    client_or = None
 
 # If Network is down, or Rate Limits; Ollama
 ollama_model = models['local']
@@ -256,30 +262,32 @@ def questions(prompt, attachment_context=""):
     )
 
 def _call_with_fallback(prompt, operation_name):
-    try:
-        response = client_or.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        text = response.choices[0].message.content
-        system_log("AI", "INFO", f"{operation_name} completed with OpenRouter.")
-        return text
-    except Exception as e:
-        system_log("AI", "WARNING", f"{operation_name} failed on OpenRouter; falling back to Ollama: {e}")
+    if client_or is None:
+        system_log("AI", "WARNING", f"{operation_name}: OpenRouter assist client missing; using Ollama.")
+    else:
         try:
-            response = ollama.chat(
-                model=ollama_model,
+            response = client_or.chat.completions.create(
+                model=model,
                 messages=[{"role": "user", "content": prompt}]
             )
-            text = response['message']['content']
-            if "...done thinking" in text:
-                text = text.replace("...done thinking", "")
-            system_log("AI", "INFO", f"{operation_name} completed with Ollama.")
+            text = response.choices[0].message.content
+            system_log("AI", "INFO", f"{operation_name} completed with OpenRouter.")
             return text
-        except Exception as e2:
-            system_log("AI", "ERROR", f"{operation_name} failed on Ollama fallback: {e2}")
-            print("Summary was not able to generate, the context of this session may be lost.")
-            return "N/A"
+        except Exception as e:
+            system_log("AI", "WARNING", f"{operation_name} failed on OpenRouter; falling back to Ollama: {e}")
+    try:
+        response = ollama.chat(
+            model=ollama_model,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        text = response['message']['content']
+        if "...done thinking" in text:
+            text = text.replace("...done thinking", "")
+        system_log("AI", "INFO", f"{operation_name} completed with Ollama.")
+        return text
+    except Exception as e2:
+        system_log("AI", "ERROR", f"{operation_name} failed on Ollama fallback: {e2}")
+        return "N/A"
 
 
 # Preference summariser

@@ -3,6 +3,7 @@ import platform
 import random
 import textwrap
 import shutil
+import getpass
 from dotenv import load_dotenv
 import os
 import sounddevice as sd
@@ -144,8 +145,54 @@ Profiles
 """)
 
 profiles = main_db.check_existing()
+
+
+def profile_state_tag(user_id):
+    """Short label so the terminal shows why a profile is closed."""
+    access = main_db.get_access(user_id)
+    if access is None:
+        return ""
+    if access["state"] == main_db.STATE_INACTIVE:
+        return " [inactive — needs its activation code]"
+    if access["visibility"] == main_db.VISIBILITY_PRIVATE:
+        return " [private — needs its password]"
+    return ""
+
+
+def profile_gate(user_id):
+    """The same rule the web interface enforces, applied to the TUI as well:
+    inactive profiles need their activation code first, private ones need their
+    password. Never open a profile the access model would deny."""
+    access = main_db.get_access(user_id)
+    if access is None:
+        print("Profile not found!")
+        return False
+    if access["state"] == main_db.STATE_INACTIVE:
+        print("That profile is inactive. Reactivate it with its activation code in the web interface first.")
+        return False
+    if access["visibility"] != main_db.VISIBILITY_PRIVATE:
+        return True
+
+    locked_for = main_db.lockout_remaining(user_id)
+    if locked_for:
+        print(f"Too many incorrect attempts. Try again in {locked_for}s.")
+        return False
+    for _ in range(3):
+        try:
+            password = getpass.getpass("Profile password: ")
+        except Exception:
+            password = input("Profile password: ")
+        if main_db.verify_profile_password(user_id, password):
+            main_db.reset_failed_attempts(user_id)
+            return True
+        main_db.register_failed_attempt(user_id)
+        print("That password is not correct.")
+    print("Too many attempts.")
+    return False
+
+
 for user in profiles:
-    print(f"{user[0]}: {user[1]}")
+    print(f"{user[0]}: {user[1]}{profile_state_tag(user[0])}")
 
 print("""
 Commands:
@@ -181,6 +228,9 @@ else:
         if selected_id not in profile_ids:
             system_log("PROFILE", "ERROR", f"Invalid profile ID selected: {selected_id}")
             print("Invalid Profile ID!")
+            sys.exit()
+        if not profile_gate(selected_id):
+            system_log("PROFILE", "WARNING", f"Access denied for profile {selected_id} in the terminal.")
             sys.exit()
         data = main_db.get_data(selected_id)
         preference = data[0]
@@ -342,7 +392,7 @@ def change_profile():
     global conv_history, session_history, imp_conv_history
     temp_list = []
     for user in main_db.check_existing():
-        print(f"{user[0]}: {user[1]}")
+        print(f"{user[0]}: {user[1]}{profile_state_tag(user[0])}")
         temp_list.append(user[0])
     print("Select the profile to switch to!")
     try:
@@ -354,6 +404,9 @@ def change_profile():
     if changed_profile not in temp_list:
         system_log("PROFILE", "WARNING", f"Invalid profile switch target selected: {changed_profile}.")
         print("Invalid Profile ID!")
+        return
+    if not profile_gate(changed_profile):
+        system_log("PROFILE", "WARNING", f"Access denied for profile {changed_profile} in the terminal.")
         return
     change_user_id(changed_profile)
     conv_history.clear()

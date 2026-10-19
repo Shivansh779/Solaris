@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Solaris{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">✦</span> Solaris
+    </a>
+    <nav class="nav">
+      <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Home</a>
+      <a href="/chat" class="{{ 'active' if request.path.startswith('/chat') else '' }}">Chat</a>
+      <a href="/memory" class="{{ 'active' if request.path.startswith('/memory') else '' }}">Memory</a>
+      <a href="/study" class="{{ 'active' if request.path.startswith('/study') else '' }}">Study</a>
+      <a href="/settings" class="{{ 'active' if request.path.startswith('/settings') else '' }}">Settings</a>
+      <a href="/setup" class="{{ 'active' if request.path.startswith('/setup') else '' }}">Setup</a>
+    </nav>
+    <div class="nav-status" id="nav-status">
+      {% if status and status.profile %}
+        <span class="chip {% if status.profile.visibility == 'private' %}badge-private{% else %}chip-ok{% endif %}">
+          {{ status.profile.name }}{% if status.profile.visibility == 'private' %} · private{% endif %}
+        </span>
+      {% else %}
+        <span class="chip chip-warn">No profile</span>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

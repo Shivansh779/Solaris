@@ -5,11 +5,6 @@ import json
 import os
 from typing import List, Dict, Any
 
-try:
-    from google.genai import types as genai_types
-except Exception:
-    genai_types = None
-
 from _log import system_log, current_time
 
 
@@ -30,8 +25,10 @@ def _build_vision_prompt(question: str, num_images: int) -> str:
 
 def _build_google_parts(images: List[Dict[str, Any]]):
     """Build google-genai Part objects from image files."""
-    if genai_types is None:
-        raise RuntimeError("google.genai not available")
+    try:
+        from google.genai import types as genai_types
+    except ImportError as exc:
+        raise RuntimeError("google.genai not available") from exc
     parts = []
     for img in images:
         with open(img['path'], 'rb') as f:

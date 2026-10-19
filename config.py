@@ -1,17 +1,15 @@
-from google import genai
-from openai import OpenAI
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
 PROVIDERS = {
-    "gemini": {"api_key_env": "GEMINI_API_KEY", "base_url": None, "client_class": genai.Client},
-    "openrouter": {"api_key_env": "OR_API_KEY", "base_url": "https://openrouter.ai/api/v1", "client_class": OpenAI},
-    "openrouter-assist": {"api_key_env": "OR_ASSIST_API_KEY", "base_url": "https://openrouter.ai/api/v1", "client_class": OpenAI},
-    "nvidia": {"api_key_env": "NVIDIA_API_KEY", "base_url": "https://integrate.api.nvidia.com/v1", "client_class": OpenAI},
-    "groq": {"api_key_env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1", "client_class": OpenAI},
-    "ollama-cloud": {"api_key_env": "OLLAMA_CLOUD_API_KEY", "base_url": "https://ollama.com/v1", "client_class": OpenAI},
+    "gemini": {"api_key_env": "GEMINI_API_KEY", "base_url": None, "client_kind": "gemini"},
+    "openrouter": {"api_key_env": "OR_API_KEY", "base_url": "https://openrouter.ai/api/v1", "client_kind": "openai"},
+    "openrouter-assist": {"api_key_env": "OR_ASSIST_API_KEY", "base_url": "https://openrouter.ai/api/v1", "client_kind": "openai"},
+    "nvidia": {"api_key_env": "NVIDIA_API_KEY", "base_url": "https://integrate.api.nvidia.com/v1", "client_kind": "openai"},
+    "groq": {"api_key_env": "GROQ_API_KEY", "base_url": "https://api.groq.com/openai/v1", "client_kind": "openai"},
+    "ollama-cloud": {"api_key_env": "OLLAMA_CLOUD_API_KEY", "base_url": "https://ollama.com/v1", "client_kind": "openai"},
 }
 
 def init_client(provider: str):
@@ -26,9 +24,12 @@ def init_client(provider: str):
             "variable set (see README.md). Add it to your .env file: "
             f"{cfg['api_key_env']}=..."
         )
-    if cfg["base_url"]:
-        return cfg["client_class"](api_key=api_key, base_url=cfg["base_url"])
-    return cfg["client_class"](api_key=api_key)
+    if cfg["client_kind"] == "gemini":
+        from google import genai
+        return genai.Client(api_key=api_key)
+
+    from openai import OpenAI
+    return OpenAI(api_key=api_key, base_url=cfg["base_url"])
 
 # Backward-compatible aliases
 init_gemini = lambda: init_client("gemini")

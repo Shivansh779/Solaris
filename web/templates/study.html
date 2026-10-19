@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Solaris — Study{% endblock %}
+{% block content %}
+
+<section class="page-head hero">
+  <div>
+    <h1>Study Trails</h1>
+    <p class="muted">Where you left off, per topic — concepts, weak spots, saved answers and the next review.
+      No points, no streaks, nothing to keep up with.</p>
+  </div>
+  <div class="hero-actions">
+    <button class="btn btn-primary" id="trail-new">New trail</button>
+  </div>
+</section>
+
+<section id="trails"></section>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h3 id="modal-title">Solaris</h3>
+      <button class="icon-btn" id="modal-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script id="study-meta" type="application/json">{{ meta|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='study.js') }}"></script>
+{% endblock %}

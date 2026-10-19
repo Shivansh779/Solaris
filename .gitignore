@@ -19,6 +19,10 @@ test_attach.jpg
 # Cache
 .cache/
 
+# Web interface
+.flask_secret
+_backups/
+
 # macOS
 .DS_Store
 

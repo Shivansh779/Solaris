@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Solaris — Settings{% endblock %}
+{% block content %}
+
+<div class="page-head">
+  <h1>Settings</h1>
+  <p class="muted">Everything the .env and config.json files hold, editable here. Writes are backed up to <code>_backups/</code>.</p>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="models">Models</button>
+  <button class="tab" data-tab="keys">API Keys</button>
+  <button class="tab" data-tab="password">Password</button>
+</div>
+
+<section class="tab-panel" id="tab-models">
+  <div class="grid grid-2">
+    <div class="card">
+      <h2>Chat &amp; fallback</h2>
+      <label>Primary Gemini model <input id="m-gemini" type="text"></label>
+      <label>OpenRouter fallback chain (one per line, tried top to bottom)
+        <textarea id="m-openrouter" rows="5"></textarea>
+      </label>
+      <label>Local Ollama model <input id="m-local" type="text" placeholder="Qwen/Qwen3:4b-thinking"></label>
+      <label>Assistant summariser model <input id="m-assist" type="text"></label>
+    </div>
+
+    <div class="card">
+      <h2>Web search depths</h2>
+      <label>Quick (results) <input id="m-depth-quick" type="number" min="1" max="20"></label>
+      <label>Standard (results) <input id="m-depth-standard" type="number" min="1" max="20"></label>
+      <label>Deep (results) <input id="m-depth-deep" type="number" min="1" max="20"></label>
+      <h2 style="margin-top:1rem">Vision</h2>
+      <label>Primary model <input id="m-vision-p-model" type="text"></label>
+      <label>Primary provider
+        <select id="m-vision-p-provider"></select>
+      </label>
+      <label>Secondary model <input id="m-vision-s-model" type="text"></label>
+      <label>Secondary provider
+        <select id="m-vision-s-provider"></select>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Specialists</h2>
+    <p class="muted small">Each specialist has a primary and a secondary model. Providers must match one of your configured API keys.</p>
+    <div class="grid grid-2" id="specialist-grid"></div>
+  </div>
+
+  <div class="card">
+    <h2>Response style</h2>
+    <div class="grid grid-3">
+      <label>Max sentences <input id="s-max-length" type="number" min="1" max="40"></label>
+      <label>Emoji density
+        <select id="s-emoji">
+          <option>None</option><option>Low</option><option>Moderate</option><option>High</option>
+        </select>
+      </label>
+      <label>Warmth
+        <select id="s-warmth"><option>low</option><option>moderate</option><option>high</option></select>
+      </label>
+      <label>Humour
+        <select id="s-humor"><option>low</option><option>moderate</option><option>high</option></select>
+      </label>
+      <label>Creativity <input id="s-creativity" type="number" min="0" max="1.5" step="0.1"></label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="save-models">Save models &amp; style</button>
+    <span class="muted small" id="models-status"></span>
+  </div>
+</section>
+
+<section class="tab-panel" id="tab-keys" hidden>
+  <div class="card">
+    <h2>Provider keys</h2>
+    <p class="muted small">Keys are written straight into <code>.env</code>. Changing or removing any key needs the 6-character API password.</p>
+    <table class="table" id="keys-table">
+      <thead><tr><th>Key</th><th>Status</th><th>New value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="password-row">
+      <input id="keys-password" type="password" placeholder="API password" autocomplete="off">
+      <button class="btn btn-primary" id="save-keys">Save changes</button>
+    </div>
+    <p class="muted small" id="keys-status"></p>
+  </div>
+</section>
+
+<section class="tab-panel" id="tab-password" hidden>
+  <div class="card">
+    <h2>API password</h2>
+    <p class="muted small" id="password-state"></p>
+    <div class="form-grid">
+      <label id="current-password-label" hidden>Current password
+        <input id="current-password" type="password" autocomplete="off">
+      </label>
+      <button class="btn btn-primary" id="rotate-password">Generate a new 6-character password</button>
+    </div>
+    <div id="password-result" class="password-result" hidden></div>
+  </div>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Solaris — Home{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <div>
+    <h1>Solaris</h1>
+    <p class="muted">Your local, multi-provider AI assistant — web edition.</p>
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="/chat">Open Chat</a>
+    <a class="btn" href="/settings">Settings</a>
+    <a class="btn" href="/setup">Run Setup Again</a>
+  </div>
+</section>
+
+<div class="grid">
+
+  <section class="card">
+    <h2>Profiles</h2>
+    <p class="muted small">Public profiles open directly. Private profiles need their password. Inactive profiles need
+      their activation code first. “Public” means visible inside this local app — nothing is exposed to the internet.</p>
+    <div class="profile-grid" id="profile-grid"></div>
+    <div class="row">
+      <label class="inline"><input type="checkbox" id="only-show-public"> Hide locked profiles</label>
+    </div>
+    <details id="new-profile-details">
+      <summary>New profile</summary>
+      <div class="form-grid">
+        <label>Name <input id="new-name" type="text" placeholder="Your name"></label>
+        <label>How should Solaris behave?
+          <textarea id="new-preference" rows="3" placeholder="Friendly, concise, no fluff..."></textarea>
+        </label>
+        <label>About you (optional)
+          <textarea id="new-about" rows="2" placeholder="Student, learning Python, likes short answers..."></textarea>
+        </label>
+        <button class="btn btn-primary" id="profile-create">Create profile</button>
+        <p class="muted small" id="create-status"></p>
+      </div>
+      <div class="code-reveal" id="code-reveal" hidden>
+        <strong>Activation code for this profile</strong>
+        <div class="code-value" id="code-value"></div>
+        <p class="warn-line">Write it down now — it is shown once and only its hash is stored. You need it to reopen
+          this profile after deactivating it.</p>
+        <button class="btn btn-small" id="code-copy">Copy</button>
+      </div>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Providers</h2>
+    <ul class="status-list">
+      {% for provider in status.providers %}
+      <li>
+        <span>{{ provider.label }}</span>
+        {% if provider.has_key %}
+          <span class="chip chip-ok">key set</span>
+        {% else %}
+          <span class="chip chip-muted">no key</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <h3>Web search</h3>
+    <ul class="status-list">
+      {% for name, ready in status.web_keys.items() %}
+      <li>
+        <span>{{ name|capitalize }}</span>
+        {% if ready %}<span class="chip chip-ok">key set</span>{% else %}<span class="chip chip-muted">no key</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="card">
+    <h2>Models</h2>
+    <ul class="status-list">
+      <li><span>Primary (Gemini)</span><code>{{ status.models.gemini or '—' }}</code></li>
+      <li><span>Fallback chain</span><code>{{ status.models.openrouter|join(', ') or '—' }}</code></li>
+      <li><span>Local (Ollama)</span><code>{{ status.models.local or '—' }}</code></li>
+      <li><span>Assistant summary</span><code>{{ status.models.or_assist or '—' }}</code></li>
+      <li><span>Vision primary</span><code>{{ status.models.vision.primary.model if status.models.vision.primary else '—' }}</code></li>
+    </ul>
+    <p class="muted small">Change any of these in <a href="/settings">Settings → Models</a>.</p>
+  </section>
+
+  <section class="card">
+    <h2>Session health</h2>
+    {% if status.disabled_models %}
+      <p class="muted small">Disabled for this session (429 / not found):</p>
+      <ul class="status-list">
+        {% for model in status.disabled_models %}<li><code>{{ model }}</code></li>{% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">All models are healthy — nothing is disabled.</p>
+    {% endif %}
+    <p class="muted small">Voice replies: <strong>{{ status.tts_engine }}</strong> · API keys editable after entering your password.</p>
+  </section>
+
+</div>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <h3 id="modal-title">Solaris</h3>
+      <button class="icon-btn" id="modal-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='landing.js') }}"></script>
+{% endblock %}

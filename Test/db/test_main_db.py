@@ -26,16 +26,41 @@ def test_create_table_full_schema(table):
     assert list(cols) == [
         "user_id", "name", "prefers", "about_user",
         "is_private", "password", "is_active", "activation_code",
+        "api_password_hash",
+        # added by the profile-access migration
+        "visibility", "state", "activation_code_hash", "profile_password_hash",
+        "failed_attempts", "lockout_until", "created_at", "updated_at", "last_active",
     ]
     expected = {
         "user_id": (0, None),
         "is_private": (1, "0"),
         "is_active": (1, "1"),
+        "visibility": (1, "'public'"),
+        "state": (1, "'active'"),
+        "failed_attempts": (1, "0"),
     }
     for name, (notnull, dflt) in expected.items():
         assert cols[name] == (notnull, dflt), name
     assert cols["password"] == (0, None)
     assert cols["activation_code"] == (0, None)
+    assert cols["api_password_hash"] == (0, None)
+    assert cols["profile_password_hash"] == (0, None)
+    assert cols["activation_code_hash"] == (0, None)
+
+
+def test_new_user_starts_public_active_with_an_activation_hash(table):
+    uid = main_db.new_user("Ada", "calm", "maths")
+
+    conn = sqlite3.connect(table)
+    visibility, state, code_hash, plain_code = conn.execute(
+        "SELECT visibility, state, activation_code_hash, activation_code FROM user_data WHERE user_id=?",
+        (uid,),
+    ).fetchone()
+    conn.close()
+
+    assert (visibility, state) == ("public", "active")
+    assert code_hash and plain_code is None, "only the hash may be stored"
+    assert main_db.verify_activation_code(uid, "not-the-code") is False
 
 
 def test_create_table_idempotent(table):

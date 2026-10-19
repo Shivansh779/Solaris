@@ -1,33 +1,29 @@
 {
-  "response" : {
-    "maximum_length" : 8,
-    "emoji_density" : "Moderate",
-
-    "temperature" : {
-      "normal" : "",
-      "coder" : "",
-      "writer" : "",
-      "strategist" : ""
+    "response": {
+        "maximum_length": 9,
+        "emoji_density": "Moderate",
+        "thinking_level": {
+            "coder": "medium",
+            "normal": "low",
+            "strategist": "high",
+            "writer": "medium"
+        },
+        "temperature": {
+            "coder": "",
+            "normal": "",
+            "strategist": "",
+            "writer": ""
+        },
+        "detail": {
+            "coder": "",
+            "normal": "",
+            "strategist": "",
+            "writer": ""
+        }
     },
-
-    "detail": {
-      "normal" : "",
-      "coder" : "",
-      "writer" : "",
-      "strategist" : ""
-    },
-
-    "thinking_level" : {
-      "normal" : "low",
-      "coder" : "medium",
-      "writer" : "medium",
-      "strategist" : "high"
+    "personality": {
+        "warmth": "moderate",
+        "humor": "moderate",
+        "creativity": "1"
     }
-  },
-
-  "personality" : {
-    "warmth" : "moderate",
-    "humor" : "low",
-    "creativity" : "0.9"
-  }
 }

@@ -91,12 +91,13 @@ def _firecrawl(query, max_results):
         for item in data
     ]
 
-def search_web(query, depth="standard"):
+def search_web(query, depth="standard", depths=None):
+    table = depths or DEPTHS
     provider_order = [_tavily, _firecrawl]
 
     for provider in provider_order:
         try:
-            results = provider(query, DEPTHS.get(_depth_key(depth), DEPTHS["standard"]))
+            results = provider(query, table.get(_depth_key(depth), table.get("standard", 5)))
             if results:
                 return results
         except Exception as e:

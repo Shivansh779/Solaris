@@ -1,8 +1,8 @@
 {
     "gemini": "gemini-2.5-flash",
     "openrouter": [
-        "google/gemma-4-26b-a4b-it:free",
-        "inclusionai/ling-3.0-flash:free",
+        "liquid/lfm-2.5-2.6b:free",
+        "qwen/qwen3.8-27b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
         "openrouter/free"
     ],
@@ -41,24 +41,24 @@
         "writing": {
             "primary": {
                 "name": "gpt-oss:20b",
-                "role": "writer",
+                "role": "writing",
                 "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "gemma4:31b",
-                "role": "writer",
+                "role": "writing",
                 "provider": "ollama-cloud"
             }
         },
         "reasoning": {
             "primary": {
                 "name": "qwen3.5:397b",
-                "role": "strategist",
+                "role": "reasoning",
                 "provider": "ollama-cloud"
             },
             "secondary": {
                 "name": "nemotron-3-super",
-                "role": "strategist",
+                "role": "reasoning",
                 "provider": "ollama-cloud"
             }
         },
