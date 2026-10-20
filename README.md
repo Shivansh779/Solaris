@@ -33,6 +33,8 @@ Solaris now runs as a **self-hosted web interface**: `python chatbot.py` starts 
 * ⚙️ User preference learning
 * 🔄 Multi-provider AI fallback
 * 📎 File attachments (md, pdf, jpg, png) as session context
+* 🗂️ Living Workspace shelf — collapsible task/files/skills/context panel on `/chat`
+* 🧩 Skills — reusable Markdown playbooks in `Skills/` (project) and `~/.solaris/skills/` (user), toggled into prompt context or run as a visible prompt
 * 👁️ `.VISION` image analysis with vision-capable models
 * 🔎 `.WEB` real-time web search with multiple depths
 * 📚 Study commands (detail, simple, quiz, timeline, compare, steps)
@@ -60,6 +62,7 @@ The Important files of this project and their use cases are as follows:
 |web_search.py	|Web search providers for the `.WEB` command (Tavily, Firecrawl)
 |vision_ai.py	|Image analysis for the `.VISION` command (NVIDIA NIM models)
 |attachment.py	|File attachment system — ingestion, temporary context, vision helpers
+|skills.py	|Markdown skills: discovery, YAML frontmatter, activation, prompt context
 |config.py	|Provider API client initializers (Gemini, OpenRouter, NVIDIA, Groq, Ollama Cloud)
 |model_control.py	|Model selection and fallback control
 |index.py	|Entry-point helpers and startup orchestration
@@ -199,6 +202,17 @@ Attach files so Solaris can work with their actual content:
 After attaching, Solaris gives a subtle suggestion for the best next step:
 * Markdown → use `.BETTER` for context-aware specialist answers
 * Image → use `.VISION <question>` to analyze it
+
+---
+
+### <u> Skills 🧩 </u>
+
+Solaris has a **Living Workspace** shelf on the chat page that holds your task, attached files, skills, context, checkpoint and study info. The **Skills** section there is a collapsible dropdown that opens into a grid of cards.
+
+* Skills are plain Markdown files with YAML frontmatter, looked up in two places: `Skills/` in the project (shipped defaults) and `~/.solaris/skills/` (personal), with the user scope winning on a name clash.
+* Each card has a **Toggle** (always-on prompt context) and a **Run** (sends the skill's `default-prompt` as a visible message).
+* Active skills are injected into every reply, `.BETTER` specialists, and follow-ups; their text never leaves the server.
+* See the shipped examples: `code-review`, `deep-summary`, `study-tutor`.
 
 ---
 
