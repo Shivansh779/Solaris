@@ -738,15 +738,9 @@ def handle_trails():
 
 def register_quiz(user_id, topic):
     """Count a finished quiz for the trail with the same topic."""
-    try:
-        for trail in study_db.list_trails(user_id):
-            if trail["title"].strip().lower() == (topic or "").strip().lower():
-                study_db.register_quiz(user_id, trail["id"])
-                system_log("STUDY", "INFO", f"Quiz counted for trail {trail['id']}.")
-                tui_utils.ok(f"Quiz counted for the trail '{trail['title']}'.")
-                return
-    except Exception as e:  # counting must never break the reply
-        system_log("STUDY", "WARNING", f"Could not record the quiz: {e}")
+    trail = core.count_quiz_for_topic(user_id, topic)
+    if trail:
+        tui_utils.ok(f"Quiz counted for the trail '{trail['title']}'.")
 
 
 def handle_task():

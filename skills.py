@@ -249,11 +249,12 @@ def slugify(title: str) -> str:
     return _SLUG.sub("-", text).strip("-")[:SLUG_LIMIT].strip("-")
 
 
-def save_skill(title, body, description="", default_prompt="", scope="project", extra=None):
+def save_skill(title, body, description="", default_prompt="", scope="project"):
     """Write one skill file and return it the way discover() will.
 
     The file is never overwritten: when the name is taken the next free
-    "-2", "-3" ... file is used instead.
+    "-2", "-3" ... file is used instead. A skill the loader would refuse to
+    read is refused here too, instead of being written and lost.
     """
     title = _text(title)
     if scope not in ("project", "user"):
@@ -274,19 +275,18 @@ def save_skill(title, body, description="", default_prompt="", scope="project", 
         path = root / f"{slug}-{index}.md"
         index += 1
 
-    extra = extra or {}
-    color = _text(extra.get("color") or extra.get("brand-color"))
-    if not _COLOR.match(color):
-        color = ""
     description = _text(description)
     meta = {
         "name": title,
         "description": description,
         "short-description": description[:70],
         "default-prompt": _text(default_prompt),
-        "icon": _text(extra.get("icon"), 8) or "◇",
-        "brand-color": color,
+        "icon": "◇",
+        "brand-color": "",
     }
     front = yaml.safe_dump(meta, sort_keys=False, allow_unicode=True).strip()
-    path.write_text(f"---\n{front}\n---\n\n{_text(body)}\n", encoding="utf-8")
+    content = f"---\n{front}\n---\n\n{_text(body)}\n"
+    if len(content.encode("utf-8")) > SKILL_LIMIT:
+        raise ValueError("The skill is too long to save.")
+    path.write_text(content, encoding="utf-8")
     return _parse(path, scope)

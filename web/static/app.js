@@ -44,7 +44,8 @@ function toast(message, kind = '') {
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text == null ? '' : String(text);
-  return div.innerHTML;
+  // Quotes too: the result is also used inside HTML attributes.
+  return div.innerHTML.replace(/"/g, '&quot;');
 }
 
 function openModal(title, bodyHtml) {

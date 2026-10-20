@@ -308,7 +308,8 @@ def _profile_source(exclude_ids=None):
     }
 
 
-def _context_manifest(memory_items=None, skill_sources=None, file_sources=None, profile=None):
+def _context_manifest(memory_items=None, skill_sources=None, file_sources=None, profile=None,
+                      history=0, session_facts=0):
     """The manifest of one answer: one row per source that reached the model."""
     entries = []
     for node in memory_items or []:
@@ -342,6 +343,22 @@ def _context_manifest(memory_items=None, skill_sources=None, file_sources=None, 
             "label": profile["label"],
             "size": int(profile.get("size") or 0),
             "detail": profile.get("detail", ""),
+        })
+    if history:
+        entries.append({
+            "id": "history",
+            "kind": "history",
+            "label": "Past sessions",
+            "size": int(history),
+            "detail": "summaries of earlier chats",
+        })
+    if session_facts:
+        entries.append({
+            "id": "session",
+            "kind": "session",
+            "label": "This session so far",
+            "size": int(session_facts),
+            "detail": "summarised earlier turns",
         })
     return entries
 
@@ -677,6 +694,22 @@ STUDY_MODES = {
 }
 
 
+def count_quiz_for_topic(user_id, topic):
+    """Count a finished quiz for the trail with the same topic. None when there is none."""
+    topic = (topic or "").strip().lower()
+    if not topic or user_id is None:
+        return None
+    try:
+        for trail in study_db.list_trails(user_id):
+            if trail["title"].strip().lower() == topic:
+                study_db.register_quiz(user_id, trail["id"])
+                system_log("STUDY", "INFO", f"Quiz counted for trail {trail['id']}.")
+                return trail
+    except Exception as e:  # counting must never break the reply
+        system_log("STUDY", "WARNING", f"Could not record the quiz: {e}")
+    return None
+
+
 def handle_study(topic, mode, title):
     cfg = config_io.load_config()
     study_cfg = cfg.get("specialist", {}).get("study", {})
@@ -694,13 +727,7 @@ def handle_study(topic, mode, title):
 
     # A completed quiz counts against a trail with the same topic, when one exists.
     if mode == "quiz" and session.user_id is not None:
-        try:
-            for trail in study_db.list_trails(session.user_id):
-                if trail["title"].strip().lower() == (topic or "").strip().lower():
-                    study_db.register_quiz(session.user_id, trail["id"])
-                    system_log("STUDY", "INFO", f"Quiz counted for trail {trail['id']}.")
-        except Exception as e:  # counting must never break the reply
-            system_log("STUDY", "WARNING", f"Could not record the quiz: {e}")
+        count_quiz_for_topic(session.user_id, topic)
 
     route = _route_from_providers([p_provider, s_provider])
     return _reply(
@@ -951,7 +978,7 @@ def _parse_study_plan(raw):
     for line in (raw or "").splitlines():
         label, _, value = line.partition(":")
         label = label.strip().strip("-*# ").upper()
-        value = value.strip().strip('"').strip()
+        value = value.strip().strip('"').strip("*").strip()
         if label == "TITLE":
             plan["title"] = value
         elif label == "DESCRIPTION":
@@ -1024,12 +1051,14 @@ def synthesize(text, engine):
 EXIT_WORDS = {"exit", "quit", "close", "bye", "goodbye"}
 
 
-def send(message, input_mode="text", exclude_ids=None, record=True):
+def send(message, input_mode="text", exclude_ids=None, record=True, previous_answer=None):
     """Run one message (chat or command) through the full pipeline.
 
     exclude_ids drops manifest sources from the prompt (a re-ask with one
     source removed). record=False keeps the whole turn out of the conversation
-    history, so a re-ask never repeats the user's message.
+    history, so a re-ask never repeats the user's message. previous_answer is
+    the answer being re-asked: it must not be in the prompt, because it was
+    written with the very source the re-ask removes.
     """
     text = (message or "").strip()
     if not text:
@@ -1090,21 +1119,33 @@ def send(message, input_mode="text", exclude_ids=None, record=True):
             session.session_history.append({"role": "user", "content": text})
 
         history = session.conv_history[-25:]
-        if not record and history and history[-1]["role"] == "assistant":
-            # A re-ask must not see the previous answer: it was written with the
-            # very source we are removing.
-            history = history[:-1]
+        if not record:
+            # A re-ask must not see the answer it replaces: it was written with
+            # the very source we are removing. Match the answer itself, not
+            # "the last one" — an older answer can be re-asked too.
+            target = (previous_answer or "").strip()
+            if target:
+                for index in range(len(history) - 1, -1, -1):
+                    if history[index]["role"] == "assistant" and history[index]["content"].strip() == target:
+                        history = history[:index] + history[index + 1:]
+                        break
+            elif history and history[-1]["role"] == "assistant":
+                history = history[:-1]
         conversation_text = "\n".join(
             f"{msg['role'].title()}: {msg['content']}" for msg in history
         )
         session.memories = history_db.access_history(session.user_id)
-        summary_text = "\n\n".join(f"[{timestamp}]\n{summary}" for summary, timestamp in session.memories)
+        summary_text = "" if "history" in excluded else "\n\n".join(
+            f"[{timestamp}]\n{summary}" for summary, timestamp in session.memories
+        )
+        session_facts = [] if "session" in excluded else session.imp_conv_history
         workspace_memory, used_memories = memory_db.build_context(
             session.user_id, text, exclude_ids=excluded,
         )
-        memory_text = summary_text
-        if workspace_memory:
-            memory_text = f"{summary_text}\n\nWorkspace memories:\n{workspace_memory}".strip()
+        memory_text = "\n\n".join(part for part in (
+            summary_text,
+            f"Workspace memories:\n{workspace_memory}" if workspace_memory else "",
+        ) if part)
         attachment_context = attachment.get_combined_attachment_context(exclude_ids=excluded)
         file_sources = _file_sources(excluded)
         bundle = skills.context_bundle(exclude_ids=excluded)
@@ -1114,7 +1155,7 @@ def send(message, input_mode="text", exclude_ids=None, record=True):
         prompt = helper_ai.build_prompt(
             session.name,
             "" if "profile" in excluded else session.preference,
-            session.imp_conv_history, conversation_text,
+            session_facts, conversation_text,
             memory_text, text,
             "" if "profile" in excluded else session.about_user,
             attachment_context, skill_context,
@@ -1150,6 +1191,8 @@ def send(message, input_mode="text", exclude_ids=None, record=True):
 
     manifest = _context_manifest(
         used_memories, skill_sources, file_sources, _profile_source(excluded),
+        history=len(summary_text),
+        session_facts=sum(len(str(item)) for item in session_facts),
     )
     return _reply(response, notes=notes, pulse=pulse, context=manifest)
 

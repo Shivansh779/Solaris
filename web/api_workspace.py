@@ -416,7 +416,12 @@ def context_reask():
     exclude = data.get("exclude") or []
     if not isinstance(exclude, list):
         return _bad("`exclude` must be a list of context ids.")
-    return jsonify(core.send(question, exclude_ids=exclude, record=False))
+    return jsonify(core.send(
+        question,
+        exclude_ids=exclude,
+        record=False,
+        previous_answer=str(data.get("answer") or ""),
+    ))
 
 
 # ------------------------------------------------------------------ skills

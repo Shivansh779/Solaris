@@ -678,17 +678,23 @@ const Shelf = {
       study.title = `Create a study trail from ${item.name}`;
       study.setAttribute('aria-label', `Create a study trail from ${item.name}`);
       study.addEventListener('click', async () => {
-        const payload = await api('/api/study/from-attachment', {
-          method: 'POST',
-          body: JSON.stringify({ index: item.index }),
-        });
-        if (!payload.ok) {
-          toast(payload.error || 'Could not create the study trail.', 'error');
-          return;
+        // One trail per click: the model call takes seconds.
+        study.disabled = true;
+        try {
+          const payload = await api('/api/study/from-attachment', {
+            method: 'POST',
+            body: JSON.stringify({ index: item.index }),
+          });
+          if (!payload.ok) {
+            toast(payload.error || 'Could not create the study trail.', 'error');
+            return;
+          }
+          const trail = payload.trail || {};
+          toast(`Study trail ready: ${trail.title || item.name}`, 'ok');
+          this.refresh();
+        } finally {
+          study.disabled = false;
         }
-        const trail = payload.trail || {};
-        toast(`Study trail ready: ${trail.title || item.name}`, 'ok');
-        this.refresh();
       });
 
       box.append(main, remove, study);
