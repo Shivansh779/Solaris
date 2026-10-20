@@ -693,6 +693,7 @@ def better(specialist, question, use_attachments=True):
         "title": title,
         "raw": questions,
         "html": render_markdown(questions),
+        "questions": helper_ai.split_questions(questions),
         "pulse": pulse,
     }
 

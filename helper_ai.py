@@ -5,6 +5,7 @@ from datetime import datetime
 import platform
 from textwrap import dedent
 import json
+import re
 
 import config
 from _log import system_log, current_time
@@ -284,6 +285,40 @@ def questions(prompt, attachment_context="", skill_context=""):
         + "User's Request: "
         + prompt
     )
+
+
+# A questionnaire comes back as one markdown blob ("### Questions" plus a
+# numbered list). The web form needs one field per question.
+_QUESTION_ITEM = re.compile(r"^\s*(?:\d+[.)]|[-*+])\s+(\S.*)$")
+_QUESTION_HEADING = re.compile(r"^\s*#{1,6}\s")
+
+
+def split_questions(raw):
+    """Split a strategist questionnaire into individual questions.
+
+    Returns an empty list when the blob cannot be parsed; that is the signal
+    for the front end to fall back to a single free-text answer box.
+    """
+    questions = []
+    continuing = False
+    for line in (raw or "").splitlines():
+        item = _QUESTION_ITEM.match(line)
+        if item:
+            questions.append(item.group(1).strip())
+            continuing = True
+            continue
+        if not questions:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continuing = False
+            continue
+        if _QUESTION_HEADING.match(line):
+            break
+        if continuing:
+            questions[-1] = f"{questions[-1]} {stripped}"
+    return questions
+
 
 def _call_with_fallback(prompt, operation_name):
     if client_or is None:

@@ -411,6 +411,11 @@ details summary { cursor: pointer; color: var(--muted); margin: 10px 0; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; }
 .modal-head h3 { margin: 0; }
 
+/* ------------------------------------------------ strategist question form */
+
+.better-q label { margin: 14px 0 0; font-weight: 500; }
+.better-q textarea { margin-top: 6px; }
+
 /* ---------------------------------------------------------------- toast */
 
 .toast {

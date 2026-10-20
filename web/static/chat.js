@@ -98,6 +98,7 @@ function renderReply(payload, speakToo = true, question = '') {
   attachAnswerSurface(wrapper, payload, question);
   if (payload.pulse) Shelf.renderRoute(payload.pulse);
   if (speakToo && payload.speak !== false) speak(payload.raw || '');
+  return wrapper;
 }
 
 function handlePayload(payload, originalMessage) {
@@ -400,6 +401,43 @@ function openBetterModal(prefill) {
 
 function renderBetterQuestions(payload) {
   addMessage('ai', payload.html, payload.title || 'Strategist');
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  if (questions.length < 2) {
+    openBetterAnswerBox();
+    return;
+  }
+  const fields = questions.map((question, index) => `
+    <div class="better-q">
+      <label for="better-q-${index}">${index + 1}. ${escapeHtml(question)}</label>
+      <textarea id="better-q-${index}" rows="2" placeholder="N/A"></textarea>
+    </div>`).join('');
+  openModal('Answer the strategist', `
+    <p class="muted small">Answer each question below — leave a field empty for N/A.</p>
+    <form id="better-form">
+      ${fields}
+      <div class="actions"><button class="btn btn-primary" type="submit">Send answers</button></div>
+    </form>
+  `);
+  document.getElementById('better-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const answers = questions.map((_, index) => {
+      const field = document.getElementById(`better-q-${index}`);
+      return (field.value || '').trim() || 'N/A';
+    }).map((answer, index) => `${index + 1}. ${answer}`).join('\n');
+    closeModal();
+    addMessage('user', plain(answers));
+    const typing = addTyping();
+    const reply = await api('/api/better/answers', {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
+    });
+    typing.remove();
+    handlePayload(reply, '');
+  });
+}
+
+// Fallback for a questionnaire the parser could not split: one free-text box.
+function openBetterAnswerBox() {
   openModal('Answer the strategist', `
     <p class="muted small">Answer the questions above — N/A is fine for anything you don't care about.</p>
     <textarea id="better-answers" rows="6" placeholder="1. …&#10;2. …"></textarea>
@@ -419,29 +457,44 @@ function renderBetterQuestions(payload) {
   });
 }
 
+// The pending draft decision: only one is live, so the row is replaced when a
+// new draft arrives.
+let draftActions = null;
+
 function renderBetterDraft(payload) {
-  renderReply(payload, false);
-  openModal('Design draft', `
-    <p class="muted small">Approve the draft, or ask the secondary model for an alternative approach.</p>
-    <div class="actions">
-      <button class="btn btn-primary" id="draft-approve">Approve</button>
-      <button class="btn" id="draft-reject">Ask for an alternative</button>
-    </div>
-  `);
+  const wrapper = renderReply(payload, false);
+  if (draftActions) {
+    draftActions.remove();
+    draftActions = null;
+  }
+  const row = document.createElement('div');
+  row.className = 'actions';
+  row.innerHTML = `
+    <button class="btn btn-primary" id="draft-approve">Approve</button>
+    <button class="btn" id="draft-reject">Ask the Secondary Model</button>`;
+  wrapper.appendChild(row);
+  draftActions = row;
+
   document.getElementById('draft-approve').addEventListener('click', async () => {
-    closeModal();
     const typing = addTyping();
-    const payload = await api('/api/better/decision', { method: 'POST', body: JSON.stringify({ approve: true }) });
+    const reply = await api('/api/better/decision', { method: 'POST', body: JSON.stringify({ approve: true }) });
     typing.remove();
-    addMessage('system', 'Draft approved.');
-    if (payload.type === 'reply') speak(payload.raw || '');
+    if (reply && reply.type === 'error') {
+      addMessage('error', plain(reply.message || 'Could not approve the draft.'));
+      return;
+    }
+    // The approved draft is already on screen; the server sends it back as a
+    // reply, so only the confirmation is added.
+    row.remove();
+    if (draftActions === row) draftActions = null;
+    addMessage('system', plain('Draft approved.'));
+    if (reply && reply.type === 'reply') speak(reply.raw || '');
   });
   document.getElementById('draft-reject').addEventListener('click', async () => {
-    closeModal();
     const typing = addTyping();
-    const payload = await api('/api/better/decision', { method: 'POST', body: JSON.stringify({ approve: false }) });
+    const reply = await api('/api/better/decision', { method: 'POST', body: JSON.stringify({ approve: false }) });
     typing.remove();
-    handlePayload(payload, '');
+    handlePayload(reply, '');
   });
 }
 
