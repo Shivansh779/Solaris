@@ -788,6 +788,38 @@ details summary { cursor: pointer; color: var(--muted); margin: 10px 0; }
 .memory-uses > summary { color: var(--muted); cursor: pointer; }
 .memory-uses ul { margin: 6px 0 0; padding-left: 16px; color: var(--muted); }
 
+/* ---------------------------------------------------------- context manifest */
+
+.context-manifest {
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.context-manifest > summary { color: var(--muted); cursor: pointer; }
+.manifest-list { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.manifest-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.manifest-kind {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  min-width: 54px;
+}
+.manifest-label { color: var(--text); }
+.manifest-size { color: var(--muted); }
+.manifest-drop {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.manifest-drop:hover { color: var(--text); border-color: #4d4d4d; }
+.manifest-drop:disabled { opacity: 0.5; cursor: default; }
+.manifest-working { color: var(--muted); }
+
 /* ---------------------------------------------------------- refinement dial */
 
 .dial {

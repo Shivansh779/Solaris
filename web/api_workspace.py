@@ -354,6 +354,25 @@ def study_from_answer():
     return jsonify({"ok": True, "trail": study_db.get_trail(user_id, trail_id)})
 
 
+@bp.post("/api/study/from-attachment")
+def study_from_attachment():
+    """Create a trail from an attached file (trail + concepts + a note)."""
+    user_id, error = _guard()
+    if error:
+        return error
+    data = request.get_json(force=True) or {}
+    index = _int(data.get("index"))
+    if index is None:
+        return _bad("Send the attachment index.")
+    try:
+        trail = core.trail_from_attachment(index)
+    except ValueError as e:
+        return _bad(str(e))
+    except Exception:
+        return _bad("Could not build the study trail.", 500)
+    return jsonify({"ok": True, "trail": trail})
+
+
 # ------------------------------------------------------------------ answer controls
 
 
@@ -374,6 +393,30 @@ def answer_control():
         data.get("answer", ""),
     )
     return jsonify(payload)
+
+
+# ------------------------------------------------------------------ context manifest
+
+
+@bp.post("/api/context/reask")
+def context_reask():
+    """Re-ask the same question with one context source removed.
+
+    The previous answer is never handed to the model: it was written with the
+    very source we are removing. The reply is an ordinary reply payload, so the
+    UI renders it like any other answer — with its own manifest.
+    """
+    _user_id, error = _guard()
+    if error:
+        return error
+    data = request.get_json(force=True) or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return _bad("Send the question again.")
+    exclude = data.get("exclude") or []
+    if not isinstance(exclude, list):
+        return _bad("`exclude` must be a list of context ids.")
+    return jsonify(core.send(question, exclude_ids=exclude, record=False))
 
 
 # ------------------------------------------------------------------ skills
@@ -410,3 +453,38 @@ def skills_invoke():
     if prompt is None:
         return _bad("This skill has no default prompt to run.")
     return jsonify({"ok": True, "id": skill_id, "prompt": prompt})
+
+
+@bp.post("/api/skills/draft")
+def skills_draft():
+    """Draft a skill from the current thread. The user edits it before saving."""
+    _user_id, error = _guard()
+    if error:
+        return error
+    return jsonify({"ok": True, "draft": core.draft_skill_from_thread()})
+
+
+@bp.post("/api/skills/save")
+def skills_save():
+    """Write the edited draft as a Markdown skill the loader picks up."""
+    _user_id, error = _guard()
+    if error:
+        return error
+    data = request.get_json(force=True) or {}
+    title = str(data.get("title") or "").strip()
+    if not title:
+        return _bad("Give the skill a title.")
+    scope = str(data.get("scope") or "project").strip().lower()
+    if scope not in ("project", "user"):
+        return _bad("Unknown scope.")
+    try:
+        skill = skills.save_skill(
+            title,
+            str(data.get("body") or "").strip(),
+            description=str(data.get("description") or "").strip(),
+            default_prompt=str(data.get("default_prompt") or "").strip(),
+            scope=scope,
+        )
+    except ValueError as e:
+        return _bad(str(e))
+    return jsonify({"ok": True, "skill": skill})

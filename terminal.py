@@ -54,6 +54,15 @@ import tui_utils
 import attachment
 import vision_ai
 
+# The shared core (pulse, answer controls, strategist flow) and the modules
+# behind the new shelf features. Importing them is safe: no network call and
+# no client is built until a request is actually made.
+import core
+import memory_db
+import skills
+import study_db
+import workspace_db
+
 from _log import system_log, current_time
 
 # Create the tables for the Database
@@ -243,6 +252,21 @@ else:
         print("Invalid Option Selected!")
         sys.exit()
 
+
+def sync_core_session():
+    """Point the shared core at the profile this terminal has selected.
+
+    core.* works on core.session, so the terminal's own profile choice has to
+    be copied over before any shared module is called.
+    """
+    core.session.user_id = current_user_id
+    core.session.name = name
+    core.session.preference = preference
+    core.session.about_user = about_user
+
+
+sync_core_session()
+
 # Important Function Definitions
 def ai_voice_manager(pref, response):
     if pref == 1:
@@ -273,19 +297,22 @@ def change_user_id(user_id):
     name = data[1]
     preference = data[0]
     current_user_id = user_id
+    sync_core_session()
     system_log("PROFILE", "INFO", f"Changed active profile to user_id={user_id}.")
 
-def ask_ai(prompt, spinner, models=None):
+def ask_ai(prompt, spinner, models=None, route=None):
     if models is None:
         models = MODELS
     spinner.start()
     try:
         system_log("AI", "INFO", "Sending request to Gemini model.")
         answer = ask_gemini(prompt)
+        core._route_step(route, "gemini", MODEL)
     except Exception as e:
+        core._route_step(route, "gemini", MODEL, ok=False, reason=str(e))
         system_log("AI", "WARNING", f"Gemini request failed, falling back to OpenRouter: {e}")
         spinner.update_message("Reasoning... ⚠️ Cloud models unavailable.")
-        answer = ask_openrouter(prompt, spinner, models)
+        answer = ask_openrouter(prompt, spinner, models, route)
     finally:
         spinner.stop()
 
@@ -312,7 +339,7 @@ def ask_gemini(prompt, model=MODEL):
             system_log("AI", "WARNING", f"Gemini model cooling down {model_state.COOLDOWN_SECONDS}s: {model}. Error: {e}")
         raise
 
-def ask_openrouter(prompt, spinner, models):
+def ask_openrouter(prompt, spinner, models, route=None):
     for model in models:
         if not model_state.can_attempt(model):
             system_log("AI", "INFO", f"Skipping unavailable OpenRouter model: {model}.")
@@ -325,8 +352,10 @@ def ask_openrouter(prompt, spinner, models):
                     {"role" : "user", "content" : prompt}
                 ]
             )
+            core._route_step(route, "openrouter", model)
             return response.choices[0].message.content
         except Exception as e:
+            core._route_step(route, "openrouter", model, ok=False, reason=str(e))
             state = model_state.classify_error(e)
             if state == model_state.RATE_LIMIT or state == model_state.MODEL_UNAVAILABLE:
                 model_state.mark_unavailable(model)
@@ -340,17 +369,24 @@ def ask_openrouter(prompt, spinner, models):
             time.sleep(0.7)
 
     spinner.update_message("Switching to Local AI...")
-    response = ask_ollama(prompt, LOCAL_MODEl)
+    if route is not None:
+        route["fallbacks"].append("All cloud models unavailable; continued with the local model.")
+    response = ask_ollama(prompt, LOCAL_MODEl, route)
     return response
 
-def ask_ollama(prompt, model):
+def ask_ollama(prompt, model, route=None):
     system_log("AI", "INFO", f"Using Ollama model: {model}")
-    response = ollama.chat(
-        model=model,
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+    except Exception as e:
+        core._route_step(route, "ollama", model, ok=False, reason=str(e))
+        raise
+    core._route_step(route, "ollama", model)
     text = response['message']['content']
     return text
 
@@ -366,10 +402,17 @@ def show_help():
     tui_utils.display_inline("  .VOICE                 - To Change the Text-To-Speech model")
     tui_utils.display_inline("  .ABOUT                 - See about the Profile and the AI Chatbot.")
     tui_utils.display_inline("  .CLEAR                 - Clears the terminal. Context is preserved.")
-    tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg, png) as temporary context.")
+    tui_utils.display_inline("  .ATTACH                - Attach a file (md, pdf, jpg, png) as context.")
     tui_utils.display_inline("  .DETACH                - Remove a file attachment (see attached list).")
     tui_utils.display_inline("  .VISION[:question]     - Analyze attached images with a vision model.")
-    tui_utils.display_inline("  .WEB[:quick|:standard|:deep] <question>  - Search the web for real-time information.")
+    tui_utils.display_inline("  .WEB[:quick|:deep] <question>  - Search the web for real-time info.")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("\n[bold]Shelf Commands:[/]")
+    tui_utils.display_inline("")
+    tui_utils.display_inline("  .SKILLS                - List the skills, switch one on or off.")
+    tui_utils.display_inline("  .MEMORY                - Show the active Constellation Memory, add one.")
+    tui_utils.display_inline("  .TRAILS                - Show the study trails, create one, add a concept.")
+    tui_utils.display_inline("  .TASK                  - Set the session task, save a checkpoint.")
     tui_utils.display_inline("")
     tui_utils.display_inline("\n[bold]Study Commands:[/]")
     tui_utils.display_inline("")
@@ -381,6 +424,8 @@ def show_help():
     tui_utils.display_inline("  .STEPS <topic>         - Show a series of steps with explanations.")
     tui_utils.display_inline("")
     tui_utils.display_inline("  exit/goodbye/bye       - To Exit")
+    tui_utils.display_inline("Every answer is followed by a privacy pulse and the list of")
+    tui_utils.display_inline("refinements you can ask for (shorter, deeper, plan, ...).")
     tui_utils.display_inline("\nNote: Profile management (update, rename, activate, deactivate)")
     tui_utils.display_inline("      is available only at application startup.")
     tui_utils.display_inline("─" * shutil.get_terminal_size().columns + "\n")
@@ -459,12 +504,12 @@ def attach():
     """Handle .ATTACH command - ingest a file into temporary attachment context."""
     file_path = tui_utils.prompt_box("File Path", "Enter absolute file path:").strip()
     if not file_path:
-        tui_utils.display_inline("[red]No file path provided.[/]")
+        tui_utils.error("No file path provided. Nothing was attached.")
         system_log("COMMAND", "WARNING", "Attach command invoked with empty path.")
         return
 
     result = attachment.ingest_file(file_path)
-    
+
     if result["success"]:
         summary = attachment.format_attachment_summary({
             'file_name': os.path.basename(result['file_path']),
@@ -474,18 +519,18 @@ def attach():
             'metadata': result['metadata']
         })
         tui_utils.display(summary, title="File Attached")
-        tui_utils.display_inline(f"[green]{result['message']}[/]")
+        tui_utils.ok(result['message'])
         if result.get("recommendation"):
-            tui_utils.display_inline(f"[dim]{result['recommendation']}[/]")
+            tui_utils.info(result['recommendation'])
         system_log("COMMAND", "INFO", f"Attached {result['file_type']} file: {result['file_path']}")
     else:
-        tui_utils.display_inline(f"[red]Failed to attach file: {result['message']}[/]")
+        tui_utils.error(f"Failed to attach file: {result['message']}")
         system_log("COMMAND", "ERROR", f"Attach failed for {file_path}: {result['message']}")
 
 def detach():
     """Handle .DETACH command - remove a file from temporary attachment context."""
     if not attachment.has_attachments():
-        tui_utils.display_inline("[yellow]No files attached currently.[/]")
+        tui_utils.warn("No files attached currently. Use .ATTACH to add one.")
         system_log("COMMAND", "INFO", "Detach command invoked with no attachments.")
         return
 
@@ -498,32 +543,245 @@ def detach():
 
     pick_str = tui_utils.prompt_box("Serial Number", "Enter the serial number to detach:").strip()
     if not pick_str:
-        tui_utils.display_inline("[red]No serial number provided.[/]")
+        tui_utils.error("No serial number provided. Nothing was removed.")
         system_log("COMMAND", "WARNING", "Detach command invoked with empty serial number.")
         return
 
     try:
         pick = int(pick_str)
     except ValueError:
-        tui_utils.display_inline("[red]Invalid serial number. Please enter a number.[/]")
+        tui_utils.error("Invalid serial number. Please enter a number.")
         system_log("COMMAND", "WARNING", f"Detach command invoked with non-numeric input: {pick_str}")
         return
 
     if pick < 1 or pick > len(all_attachments):
-        tui_utils.display_inline(f"[red]Invalid serial number. Choose between 1 and {len(all_attachments)}.[/]")
+        tui_utils.error(f"Invalid serial number. Choose between 1 and {len(all_attachments)}.")
         system_log("COMMAND", "WARNING", f"Detach command invoked with out-of-range serial number: {pick}")
         return
 
     dict_index = pick - 1
     removed = attachment.remove_attachment(dict_index)
     if removed is None:
-        tui_utils.display_inline("[red]Failed to remove attachment (internal error).[/]")
+        tui_utils.error("Failed to remove attachment (internal error).")
         system_log("COMMAND", "ERROR", f"remove_attachment returned None for valid index {dict_index}")
         return
 
     import json
-    tui_utils.display_inline(f"[green]Removed attachment: {removed['file_name']}[/]")
+    tui_utils.ok(f"Removed attachment: {removed['file_name']}")
     system_log("COMMAND", "INFO", f"Removed attachment: {removed['file_name']}. Metadata: {json.dumps(removed['metadata'])}")
+
+
+# ---------------------------------------------------------------------------
+# Shared core: privacy pulse, answer controls and the shelf features
+# ---------------------------------------------------------------------------
+
+def choose_option(label, options, default=1):
+    """Numbered choice from a list of (value, label) pairs."""
+    tui_utils.display_table(
+        ["#", label],
+        [(str(index), text) for index, (value, text) in enumerate(options, 1)],
+        title=label,
+    )
+    pick = tui_utils.prompt_box(label, f"Enter a number between 1 and {len(options)}:").strip()
+    if pick.isdigit() and 1 <= int(pick) <= len(options):
+        return options[int(pick) - 1][0]
+    tui_utils.warn(f"No valid choice — keeping '{options[default - 1][0]}'.")
+    return options[default - 1][0]
+
+
+def offer_refinements(question, answer):
+    """Offer the shared answer controls and run the one that is picked."""
+    controls = core.answer_controls()
+    if not controls:
+        return
+    tui_utils.display_controls(controls)
+    pick = tui_utils.prompt_box(
+        "Refine", "Number to refine this answer, or press Enter to continue:"
+    ).strip()
+    if not pick:
+        return
+    if not pick.isdigit() or not 1 <= int(pick) <= len(controls):
+        tui_utils.warn(f"Pick a number between 1 and {len(controls)}.")
+        return
+
+    control = controls[int(pick) - 1]
+    sync_core_session()
+    with get_spinner():
+        result = core.follow_up(control["key"], question, answer)
+    if result.get("type") == "error":
+        tui_utils.error(result.get("message", "The refinement failed."))
+        return
+    tui_utils.display_markdown(result.get("raw", ""), title=result.get("title", control["label"]))
+    tui_utils.display_pulse(result.get("pulse"))
+    # Keep the terminal's own conversation in step with the refinement.
+    label = control["label"]
+    for history in (conv_history, session_history):
+        history.append({"role": "user", "content": f"({label}) {question}".strip()})
+        history.append({"role": "assistant", "content": result.get("raw", "")})
+
+
+def handle_skills():
+    """List the Markdown skills and let the user switch one on or off."""
+    items = skills.payload()["skills"]
+    if not items:
+        tui_utils.warn("No skills found. Add a Markdown file to Skills/ or ~/.solaris/skills/.")
+        return
+
+    rows = [
+        (str(index), item["name"], item["scope"], "active" if item["active"] else "off", item["short"])
+        for index, item in enumerate(items, 1)
+    ]
+    tui_utils.display_table(["#", "Skill", "Scope", "State", "Description"], rows, title="Skills")
+
+    pick = tui_utils.prompt_box(
+        "Skill", "Number to switch on/off, 'c' for the active prompt context, Enter to exit:"
+    ).strip().lower()
+    if not pick:
+        return
+    if pick == "c":
+        context = skills.get_context()
+        if context:
+            tui_utils.display(context, title="Active Skills In The Prompt")
+        else:
+            tui_utils.info("No skill is active, so the prompt carries no skill instructions.")
+        return
+    if not pick.isdigit() or not 1 <= int(pick) <= len(items):
+        tui_utils.warn(f"Pick a number between 1 and {len(items)}.")
+        return
+
+    item = items[int(pick) - 1]
+    now_active = not item["active"]
+    if not skills.set_active(item["id"], now_active):
+        tui_utils.error("That skill is unknown.")
+        return
+    tui_utils.ok(f"{item['name']} is now {'active' if now_active else 'off'}.")
+
+
+def handle_memory():
+    """Show the profile's active memories (Constellation Memory) and add one."""
+    nodes = memory_db.list_memories(current_user_id, status="active")
+    rows = [
+        (
+            str(index),
+            memory_db.CATEGORY_LABELS.get(node["category"], node["category"]),
+            node["title"],
+            node["detail"] or "-",
+        )
+        for index, node in enumerate(nodes, 1)
+    ]
+    tui_utils.display_table(["#", "Category", "Memory", "Detail"], rows, title="Constellation Memory")
+
+    action = tui_utils.prompt_box("Memory", "'a' to add a memory, Enter to exit:").strip().lower()
+    if action != "a":
+        return
+
+    title = tui_utils.prompt_box("Memory Title", "What should Solaris remember?").strip()
+    if not title:
+        tui_utils.warn("A memory needs a title. Nothing was stored.")
+        return
+    detail = tui_utils.prompt_box("Detail", "Anything else worth keeping (optional):").strip()
+    category = choose_option(
+        "Category",
+        [(key, memory_db.CATEGORY_LABELS[key]) for key in memory_db.CATEGORIES],
+        default=memory_db.CATEGORIES.index("custom") + 1,
+    )
+    memory_db.add_memory(current_user_id, category, title, detail, source="user", status="active")
+    tui_utils.ok("Memory stored. It is now part of the prompt context.")
+
+
+def handle_trails():
+    """List the study trails, create one, or add a concept to one."""
+    trails = study_db.list_trails(current_user_id)
+    rows = [
+        (
+            str(trail["id"]),
+            trail["title"],
+            study_db.STAGE_LABELS.get(trail["stage"], trail["stage"]),
+            str(trail["quizzes_completed"]),
+            ", ".join(spot["name"] for spot in trail["weak_spots"]) or "-",
+        )
+        for trail in trails
+    ]
+    tui_utils.display_table(["#", "Trail", "Stage", "Quizzes", "Revisit"], rows, title="Study Trails")
+
+    action = tui_utils.prompt_box(
+        "Trail", "'n' for a new trail, a trail number to add a concept, Enter to exit:"
+    ).strip().lower()
+    if not action:
+        return
+    if action == "n":
+        title = tui_utils.prompt_box("Trail Title", "What are you learning?").strip()
+        if not title:
+            tui_utils.warn("A study trail needs a topic. Nothing was created.")
+            return
+        description = tui_utils.prompt_box("Description", "What is this trail about? (optional)").strip()
+        trail_id = study_db.create_trail(current_user_id, title, description)
+        tui_utils.ok(f"Study trail {trail_id} created: {title}")
+        return
+    if not action.isdigit():
+        tui_utils.warn("Enter 'n' or the number of a trail.")
+        return
+
+    trail_id = int(action)
+    if not any(trail["id"] == trail_id for trail in trails):
+        tui_utils.error(f"No study trail with the number {trail_id}.")
+        return
+
+    name = tui_utils.prompt_box("Concept", "Which concept goes into this trail?").strip()
+    if not name:
+        tui_utils.warn("A concept needs a name. Nothing was added.")
+        return
+    mastery = choose_option("Mastery", [(key, key) for key in study_db.MASTERY], default=1)
+    study_db.add_concept(current_user_id, trail_id, name, mastery)
+    tui_utils.ok(f"Concept '{name}' added to trail {trail_id} ({mastery}).")
+
+
+def register_quiz(user_id, topic):
+    """Count a finished quiz for the trail with the same topic."""
+    try:
+        for trail in study_db.list_trails(user_id):
+            if trail["title"].strip().lower() == (topic or "").strip().lower():
+                study_db.register_quiz(user_id, trail["id"])
+                system_log("STUDY", "INFO", f"Quiz counted for trail {trail['id']}.")
+                tui_utils.ok(f"Quiz counted for the trail '{trail['title']}'.")
+                return
+    except Exception as e:  # counting must never break the reply
+        system_log("STUDY", "WARNING", f"Could not record the quiz: {e}")
+
+
+def handle_task():
+    """Show the workspace task and checkpoint, and let the user change them."""
+    task = workspace_db.get_task(current_user_id)
+    checkpoint = workspace_db.get_checkpoint(current_user_id)
+    tui_utils.display_table(
+        ["Field", "Value"],
+        [
+            ("Task", task["task"] or "-"),
+            ("Updated", task["updated_at"] or "-"),
+            ("Goal", checkpoint["goal"] or "-"),
+            ("Decisions", checkpoint["decisions"] or "-"),
+            ("Open questions", checkpoint["questions"] or "-"),
+            ("Next step", checkpoint["next_step"] or "-"),
+        ],
+        title="Workspace",
+        expand=False,
+    )
+
+    action = tui_utils.prompt_box(
+        "Workspace", "'t' to set the task, 'c' to save a checkpoint, Enter to exit:"
+    ).strip().lower()
+    if action == "t":
+        value = tui_utils.prompt_box("Task", "What are you working on?").strip()
+        workspace_db.set_task(current_user_id, value)
+        tui_utils.ok("Task saved for this profile.")
+        return
+    if action == "c":
+        goal = tui_utils.prompt_box("Goal", "What is the goal of this session?").strip()
+        decisions = tui_utils.prompt_box("Decisions", "What was decided? (optional)").strip()
+        questions = tui_utils.prompt_box("Open Questions", "What is still open? (optional)").strip()
+        next_step = tui_utils.prompt_box("Next Step", "What happens next? (optional)").strip()
+        workspace_db.save_checkpoint(current_user_id, goal, decisions, questions, next_step)
+        tui_utils.ok("Checkpoint saved for this profile.")
 
 def select_vision_attachments():
     """Select image attachments for .VISION. Returns list of image dicts or empty list."""
@@ -538,7 +796,7 @@ def select_vision_attachments():
         elif yn in ("n", "no"):
             return []
         else:
-            tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
+            tui_utils.warn("Please enter Y or N.")
 
 
 def handle_vision(question=""):
@@ -549,23 +807,23 @@ def handle_vision(question=""):
     vm = config_data.get("vision_model", {})
     primary = vm.get("primary", {})
     if not primary.get("model") or not primary.get("provider"):
-        tui_utils.display("[yellow]No vision model configured. Set vision_model.primary in config.json.[/]", title="Vision")
+        tui_utils.display("Warning: no vision model configured. Set vision_model.primary in config.json.", title="Vision")
         system_log("COMMAND", "WARNING", ".VISION invoked but no vision model configured.")
         return
 
     if not attachment.has_attachments():
-        tui_utils.display_inline("[yellow]No files attached. Use .ATTACH to add an image first.[/]")
+        tui_utils.warn("No files attached. Use .ATTACH to add an image first.")
         return
 
     images = select_vision_attachments()
     if not images:
-        tui_utils.display_inline("[yellow]No images selected.[/]")
+        tui_utils.warn("No images selected.")
         return
 
     if not question:
         question = tui_utils.prompt_box("Question", "What would you like to know about the image?").strip()
         if not question:
-            tui_utils.display_inline("[red]No question provided.[/]")
+            tui_utils.error("No question provided, so nothing was analysed.")
             return
 
     clients = {
@@ -582,21 +840,30 @@ def handle_vision(question=""):
     s_client = clients.get(s_provider)
 
     if not p_client and not s_client:
-        tui_utils.display("[red]Vision model providers are unavailable. Check your config.[/]", title="Error")
+        tui_utils.display("Error: vision model providers are unavailable. Check your config.", title="Error")
         system_log("COMMAND", "ERROR", ".VISION: no available vision model clients.")
         return
 
+    started = time.time()
     try:
         with get_spinner():
             response = vision_ai.vision(question, p_client, s_client, images)
     except Exception as e:
         system_log("COMMAND", "ERROR", f".VISION failed: {e}")
-        tui_utils.display("[red]Vision analysis failed. Check logs for details.[/]", title="Error")
+        tui_utils.display("Error: vision analysis failed. Check logs for details.", title="Error")
         return
 
     img_count = len(images)
     img_word = "image" if img_count == 1 else "images"
     tui_utils.display_markdown(response, title=f"Vision Analysis ({img_count} {img_word})")
+    route = core._route_from_providers([p_provider, s_provider])
+    tui_utils.display_pulse(core.build_pulse(
+        route,
+        **core._context_counts(),
+        files_selected=img_count,
+        files_total=img_count,
+        latency_ms=int((time.time() - started) * 1000),
+    ))
     system_log("COMMAND", "INFO", f".VISION analyzed {img_count} {img_word} with question: {question[:80]}")
 
 
@@ -613,21 +880,16 @@ def parse_web_depth(question):
                 return "deep", remaining
     return "standard", q
 
-def display_sources(sources):
-    headers = ["#", "Title", "URL"]
-    rows = [[i+1, s["title"], s["url"]] for i, s in enumerate(sources)]
-    tui_utils.display_table(headers, rows, title="Sources")
-
 def handle_web(question=""):
     question = question.strip()
     if not question:
-        print("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
+        tui_utils.error("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
         system_log("COMMAND", "WARNING", "Web search requested with no question.")
         return
 
     depth, query = parse_web_depth(question)
     if not query:
-        print("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
+        tui_utils.error("Please provide a question. Usage: .WEB <question> or .WEB:quick <question>")
         system_log("COMMAND", "WARNING", "Web search requested with no question.")
         return
     system_log("COMMAND", "INFO", f"Web search requested: {query[:50]}... (depth={depth}).")
@@ -636,7 +898,7 @@ def handle_web(question=""):
         sources = web_search.search_web(query, depth)
 
     if not sources:
-        print("Web search unavailable.")
+        tui_utils.error("Web search unavailable. Check the Tavily / Firecrawl keys in your .env file.")
         system_log("WEB", "ERROR", f"Web search unavailable for query: {query[:50]}...")
         return
 
@@ -646,16 +908,26 @@ def handle_web(question=""):
 
     web_prompt = helper_ai.build_web_prompt(query, sources)
 
+    route = core.new_route()
+    started = time.time()
     try:
         spinner = get_spinner()
-        response = ask_ai(web_prompt, spinner=spinner)
+        response = ask_ai(web_prompt, spinner=spinner, route=route)
 
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
             playsound("output.wav")
         tui_utils.display_markdown(response, title="Web Search")
 
-        display_sources(sources)
+        tui_utils.display_sources(sources)
+
+        tui_utils.display_pulse(core.build_pulse(
+            route,
+            **core._context_counts(),
+            web_search=True,
+            latency_ms=int((time.time() - started) * 1000),
+        ))
+        offer_refinements(query, response)
 
         session_history.append({
             "role": "user",
@@ -669,7 +941,7 @@ def handle_web(question=""):
 
     except Exception as e:
         system_log("SYSTEM", "ERROR", f"Unexpected error in web search response generation: {e}")
-        print("An error occurred while processing the web search results.")
+        tui_utils.error("An error occurred while processing the web search results.")
 
 
 
@@ -687,7 +959,16 @@ def select_better_attachments() -> str:
         elif yn in ("n", "no"):
             return ""
         else:
-            tui_utils.display_inline("[yellow]Please enter Y or N.[/]")
+            tui_utils.warn("Please enter Y or N.")
+
+
+def flow_route(primary, secondary):
+    """Route record for the flows that pick their own model (study, specialists, vision).
+
+    Those modules do not report back which client answered, so the route names
+    the candidates only — the pulse must never claim a model that did not answer.
+    """
+    return core._route_from_providers([primary.get("provider"), secondary.get("provider")])
 
 
 def better(question="", clien=None, answers=""):
@@ -703,11 +984,16 @@ def better(question="", clien=None, answers=""):
         ],
         title="Who do you want to answer?",
     )
-    choice = int(tui_utils.prompt_box("Your Option"))
+    pick = tui_utils.prompt_box("Your Option").strip()
+    if not pick.isdigit() or not 1 <= int(pick) <= 3:
+        tui_utils.error("Invalid option. Choose 1, 2 or 3.")
+        return "Invalid Option Selected! Try Again!"
+    choice = int(pick)
 
     if choice in (1, 2) and not question:
         question = tui_utils.prompt_box("Your Request", "Describe your request clearly:").strip()
         if not question:
+            tui_utils.error("No request provided. Nothing was sent.")
             return "No request provided. Try Again!"
 
     clients = {
@@ -723,74 +1009,118 @@ def better(question="", clien=None, answers=""):
 
     match choice:
         case 1:
-            p_client = config['specialist']['writing']['primary']['provider']
-            s_client = config['specialist']['writing']['secondary']['provider']
-            if p_client in clients and s_client in clients:
+            primary = config['specialist']['writing']['primary']
+            secondary = config['specialist']['writing']['secondary']
+            if primary['provider'] in clients and secondary['provider'] in clients:
+                started = time.time()
                 with get_spinner():
-                    response = specialist_ai.writer(question, clients[p_client], clients[s_client], attachment_context)
+                    response = specialist_ai.writer(question, clients[primary['provider']], clients[secondary['provider']], attachment_context, skills.get_context())
                 tui_utils.display_markdown(response, title="✍️ The Writer")
+                tui_utils.display_pulse(core.build_pulse(
+                    flow_route(primary, secondary),
+                    **core._context_counts(),
+                    latency_ms=int((time.time() - started) * 1000),
+                ))
+                offer_refinements(question, response)
                 return response
+            tui_utils.error("The Writer models are unavailable. Check your config.")
+            return "Writer models unavailable. Check config."
         case 2:
-            p_client = config['specialist']['coding']['primary']['provider']
-            s_client = config['specialist']['coding']['secondary']['provider']
-            if p_client in clients and s_client in clients:
+            primary = config['specialist']['coding']['primary']
+            secondary = config['specialist']['coding']['secondary']
+            if primary['provider'] in clients and secondary['provider'] in clients:
+                started = time.time()
                 with get_spinner():
-                    response = specialist_ai.coder(question, clients[p_client], clients[s_client], attachment_context)
+                    response = specialist_ai.coder(question, clients[primary['provider']], clients[secondary['provider']], attachment_context, skills.get_context())
                 tui_utils.display_markdown(response, title="💻 The Programmer")
+                tui_utils.display_pulse(core.build_pulse(
+                    flow_route(primary, secondary),
+                    **core._context_counts(),
+                    latency_ms=int((time.time() - started) * 1000),
+                ))
+                offer_refinements(question, response)
                 return response
+            tui_utils.error("The Programmer models are unavailable. Check your config.")
+            return "Programmer models unavailable. Check config."
         case 3:
-            p_client = config['specialist']['reasoning']['primary']['provider']
-            s_client = config['specialist']['reasoning']['secondary']['provider']
-            if p_client not in clients or s_client not in clients:
+            primary = config['specialist']['reasoning']['primary']
+            secondary = config['specialist']['reasoning']['secondary']
+            if primary['provider'] not in clients or secondary['provider'] not in clients:
+                tui_utils.error("Strategist models unavailable. Check config.")
                 return "Strategist models unavailable. Check config."
-            return strategist_flow(question, clients[p_client], clients[s_client], attachment_context)
+            return strategist_flow(question, use_attachments=bool(attachment_context))
         case _:
+            tui_utils.error("Invalid option. Choose 1, 2 or 3.")
             return "Invalid Option Selected! Try Again!"
 
-def strategist_flow(goal, p_client, s_client, attachment_context=None):
-    goal = goal.strip()
+
+def collect_answers(questions):
+    """Ask the strategist's questions one by one and format the answers."""
+    if not questions:
+        return tui_utils.prompt_box("Your Answers", "Answer the questions above (N/A is fine):").strip() or "N/A"
+    answers = []
+    for index, question in enumerate(questions, 1):
+        answers.append(tui_utils.prompt_box(f"Question {index}", question).strip() or "N/A")
+    return "\n".join(f"{index}. {answer}" for index, answer in enumerate(answers, 1))
+
+
+def strategist_flow(goal="", use_attachments=True):
+    """Questions → numbered answers → draft → Approve or Ask the Secondary Model."""
+    goal = (goal or "").strip()
     if not goal:
-        goal = input("Define your goal (structured, one response): ").strip()
+        goal = tui_utils.prompt_box("Your Goal", "Define your goal (structured, one response):").strip()
 
     if not goal:
+        tui_utils.error("No goal provided. Nothing was sent.")
         return "No goal provided. Try again."
-
-    # Only auto-fetch all attachments if not explicitly provided
-    if attachment_context is None:
-        attachment_context = attachment.get_combined_attachment_context()
 
     system_log("AI", "INFO", f"Strategist flow started for goal: {goal[:60]}...")
 
-    print("\nSolaris is drafting its questions...")
+    sync_core_session()
     with get_spinner():
-        ai_questions = specialist_ai.questionaire(goal, p_client, s_client, attachment_context)
-    tui_utils.display_markdown(ai_questions, title="🤖 Solaris Questions")
+        questions_result = core.better("strategist", goal, use_attachments=use_attachments)
+    if questions_result.get("type") == "error":
+        tui_utils.error(questions_result.get("message", "The Strategist is unavailable."))
+        return questions_result.get("message", "")
 
-    answers = tui_utils.prompt_box("Your Answers", "Respond to each question clearly:").strip()
-    if not answers:
-        answers = "N/A"
+    tui_utils.display_markdown(questions_result.get("raw", ""), title="🤖 Solaris Questions")
+    tui_utils.display_pulse(questions_result.get("pulse"))
+
+    questions = questions_result.get("questions") or helper_ai.split_questions(questions_result.get("raw", ""))
+    answers = collect_answers(questions)
 
     system_log("AI", "INFO", "Primary strategist drafting PRD.")
     with get_spinner():
-        draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers, attachment_context=attachment_context)
-    previous_draft = None
+        draft_result = core.better_answers(answers)
+    if draft_result.get("type") == "error":
+        tui_utils.error(draft_result.get("message", "The draft could not be written."))
+        return draft_result.get("message", "")
+    tui_utils.display_markdown(draft_result.get("raw", ""), title="Design Draft")
 
     while True:
-        tui_utils.display_markdown(draft, title="Design Draft")
-        accept = input("\nDo you approve this design draft? (Y/N): ").strip().lower()
-        if accept in ("y", "yes"):
-            system_log("AI", "INFO", "Strategist draft approved by user.")
-            return draft
-        elif accept in ("n", "no"):
-            system_log("AI", "INFO", "Strategist draft rejected; requesting an alternative from the secondary model.")
-            print("\nSolaris is asking the secondary strategist for an alternative approach...")
-            previous_draft = draft
+        action = tui_utils.prompt_box(
+            "Design Draft", "Approve (a) or Ask the Secondary Model (s)?"
+        ).strip().lower()
+        if action in ("a", "approve", "y", "yes"):
             with get_spinner():
-                draft = specialist_ai.strategist(goal, p_client, s_client, ai_questions, answers,
-                                                 previous_draft=previous_draft, force_secondary=True, attachment_context=attachment_context)
-        else:
-            print("Invalid input. Please enter Y or N.")
-            
+                approved = core.better_decision(True)
+            if approved.get("type") == "error":
+                tui_utils.error(approved.get("message", "The draft could not be approved."))
+                return approved.get("message", "")
+            system_log("AI", "INFO", "Strategist draft approved by user.")
+            tui_utils.display_markdown(approved.get("raw", ""), title="🧠 The Strategist")
+            return approved.get("raw", "")
+        if action in ("s", "secondary", "n", "no"):
+            system_log("AI", "INFO", "Strategist draft rejected; requesting an alternative from the secondary model.")
+            tui_utils.info("Asking the secondary strategist for an alternative approach...")
+            with get_spinner():
+                alternative = core.better_decision(False)
+            if alternative.get("type") == "error":
+                tui_utils.error(alternative.get("message", "The alternative draft failed."))
+                return alternative.get("message", "")
+            tui_utils.display_markdown(alternative.get("raw", ""), title="Alternative Design Draft")
+            continue
+        tui_utils.warn("Enter 'a' to approve or 's' for the secondary model.")
 
 system_log("SYSTEM", "INFO", "Chat session started.")
 
@@ -828,6 +1158,10 @@ while True:
         ".CLEAR" : clear,
         ".ATTACH" : attach,
         ".DETACH" : detach,
+        ".SKILLS" : handle_skills,
+        ".MEMORY" : handle_memory,
+        ".TRAILS" : handle_trails,
+        ".TASK" : handle_task,
     }
 
     # Handle .WEB command with optional question
@@ -874,7 +1208,7 @@ while True:
     if study_mode:
         topic = question[len(f".{study_mode.upper()}"):].strip()
         if not topic:
-            tui_utils.display_inline("[yellow]Please provide a topic. Example: .QUIZ photosynthesis[/]")
+            tui_utils.warn("Please provide a topic. Example: .QUIZ photosynthesis")
             continue
 
         clients = {
@@ -886,36 +1220,48 @@ while True:
         }
 
         config_data = json.load(open("config.json"))
-        p_provider = config_data["specialist"]["study"]["primary"]["provider"]
-        s_provider = config_data["specialist"]["study"]["secondary"]["provider"]
+        primary = config_data["specialist"]["study"]["primary"]
+        secondary = config_data["specialist"]["study"]["secondary"]
+        p_provider = primary["provider"]
+        s_provider = secondary["provider"]
 
         p_client = clients.get(p_provider)
         s_client = clients.get(s_provider)
 
         if not p_client or not s_client:
-            tui_utils.display("Study models are unavailable. Check your config.", title="Error")
+            tui_utils.display("Error: study models are unavailable. Check your config.", title="Error")
             continue
 
+        started = time.time()
         try:
             with get_spinner():
                 response = study_ai.study(topic, p_client, s_client, study_mode)
         except Exception as e:
             system_log("COMMAND", "ERROR", f"Study command '{study_mode}' failed: {e}")
-            tui_utils.display("Both models failed to generate a response.", title="Error")
+            tui_utils.display("Error: both models failed to generate a response.", title="Error")
             continue
 
+        titles = {
+            "quiz": f"Quiz: {topic}",
+            "compare": f"Comparison: {topic}",
+            "timeline": f"Timeline: {topic}",
+            "detail": f"Detailed Explanation: {topic}",
+            "simple": f"Simple Explanation: {topic}",
+            "steps": f"Steps: {topic}",
+        }
+        tui_utils.display_markdown(response, title=titles[study_mode])
+
+        # A finished quiz counts for a trail with the same topic.
         if study_mode == "quiz":
-            tui_utils.display_markdown(response, title=f"Quiz: {topic}")
-        elif study_mode == "compare":
-            tui_utils.display_markdown(response, title=f"Comparison: {topic}")
-        elif study_mode == "timeline":
-            tui_utils.display_markdown(response, title=f"Timeline: {topic}")
-        elif study_mode == "detail":
-            tui_utils.display_markdown(response, title=f"Detailed Explanation: {topic}")
-        elif study_mode == "simple":
-            tui_utils.display_markdown(response, title=f"Simple Explanation: {topic}")
-        elif study_mode == "steps":
-            tui_utils.display_markdown(response, title=f"Steps: {topic}")
+            register_quiz(current_user_id, topic)
+
+        tui_utils.display_pulse(core.build_pulse(
+            flow_route(primary, secondary),
+            **core._context_counts(),
+            study_trail=topic,
+            latency_ms=int((time.time() - started) * 1000),
+        ))
+        offer_refinements(topic, response)
         continue
 
     # Add to current chat conv_history and session_history
@@ -941,13 +1287,25 @@ while True:
         for summary, timestamp in memories
     )
 
+    # Constellation Memory: only the active nodes that match this question.
+    try:
+        workspace_memory, used_memories = memory_db.build_context(current_user_id, question)
+    except Exception as e:
+        workspace_memory, used_memories = "", []
+        system_log("MEMORY", "WARNING", f"Memory context skipped: {e}")
+    if workspace_memory:
+        memory_text = f"{memory_text}\n\nWorkspace memories:\n{workspace_memory}".strip()
+
     # Get temporary attachment context if any
     attachment_context = attachment.get_combined_attachment_context()
 
-    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context)
+    # Active skills add their instructions to every prompt.
+    skill_context = skills.get_context()
+
+    prompt = helper_ai.build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context, skill_context)
 
     if not question:
-        print("No speech detected.")
+        tui_utils.warn("No speech detected.")
         continue
 
     _ = question.lower().strip(' ?!.')
@@ -961,8 +1319,9 @@ while True:
             ai_voice_manager(pref, response)
             playsound("output.wav")
         tui_utils.display(response, title="Goodbye")
-        # Clear temporary attachment context on session end
+        # Clear temporary attachment context and the session's active skills
         attachment.clear_attachment_context()
+        skills.clear_active()
         processed_session_hist = helper_ai.summarise_session(session_history)
         history_db.store_history(session_start_time, current_user_id, processed_session_hist)
         system_log("DATABASE", "INFO", f"Stored session history for user_id={current_user_id}.")
@@ -970,7 +1329,9 @@ while True:
 
     try:
         spinner = get_spinner()
-        response = ask_ai(prompt, spinner=spinner)
+        route = core.new_route()
+        started = time.time()
+        response = ask_ai(prompt, spinner=spinner, route=route)
 
         if ai_voice_text == 'v':
             ai_voice_manager(pref, response)
@@ -986,11 +1347,20 @@ while True:
             "content": response
         })
 
+        tui_utils.display_pulse(core.build_pulse(
+            route,
+            **core._context_counts(),
+            memories=len(used_memories),
+            memory_items=used_memories,
+            latency_ms=int((time.time() - started) * 1000),
+        ))
+        offer_refinements(question, response)
+
     except Exception as e:
         system_log("SYSTEM", "ERROR", f"Unexpected chat loop error: {e}")
         if '503' in str(e):
-            print("Server unavailable at the moment!")
+            tui_utils.error("Server unavailable at the moment (503). Nothing was sent — try again.")
         elif '429' in str(e):
-            print("Rate Limit Reached!")
+            tui_utils.error("Rate limit reached (429). Nothing was sent — try again in a moment.")
         else:
-            print(f"An error occurred: {e}")
+            tui_utils.error(f"An error occurred: {e}")

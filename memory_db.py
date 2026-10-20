@@ -248,15 +248,22 @@ def counts(user_id):
     return counts_map
 
 
-def build_context(user_id, query="", limit=CONTEXT_LIMIT):
+def build_context(user_id, query="", limit=CONTEXT_LIMIT, exclude_ids=None):
     """Compact block of the most relevant active memories for one request.
 
     Relevance is category + keyword overlap with the current question; the model
-    never receives the whole memory store.
+    never receives the whole memory store. An excluded node (manifest id
+    "memory:12" or the plain id) is left out of the text and of the used list.
     """
     memories = list_memories(user_id, status="active")
     if not memories:
         return "", []
+
+    excluded = set(exclude_ids or ())
+    if excluded:
+        memories = [node for node in memories if not _excluded(node["id"], excluded)]
+        if not memories:
+            return "", []
 
     words = {w for w in _words(query) if len(w) > 3}
 
@@ -274,8 +281,19 @@ def build_context(user_id, query="", limit=CONTEXT_LIMIT):
         if memory["detail"]:
             line += f" — {memory['detail']}"
         lines.append(line)
-        used.append({"id": memory["id"], "category": memory["category"], "title": memory["title"]})
+        # "size" is how many characters this node contributed to the prompt.
+        used.append({
+            "id": memory["id"],
+            "category": memory["category"],
+            "title": memory["title"],
+            "size": len(line),
+        })
     return "\n".join(lines), used
+
+
+def _excluded(memory_id, excluded):
+    """True when this node is excluded, by manifest id ("memory:12") or plain id."""
+    return f"memory:{memory_id}" in excluded or str(memory_id) in excluded
 
 
 def _words(text):

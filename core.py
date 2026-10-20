@@ -267,7 +267,86 @@ def _context_counts(include_files=True):
     }
 
 
-def _reply(text, title="Solaris", notes=None, sources=None, pulse=None):
+# --------------------------------------------------------------------------
+# Context manifest ("why this answer")
+# --------------------------------------------------------------------------
+#
+# One row per source that went into the prompt: a memory node, an active skill,
+# a selected file or the profile preferences. The row id ("memory:12",
+# "skill:project:x.md", "file:0", "profile") is what a re-ask excludes.
+
+def _file_sources(exclude_ids=None):
+    """Selected attachments with the text length each one contributes."""
+    excluded = set(exclude_ids or ())
+    sources = []
+    for index, (_path, item) in enumerate(attachment.get_all_attachments().items()):
+        if not item.get("selected", True):
+            continue
+        if f"file:{index}" in excluded or str(index) in excluded:
+            continue
+        sources.append({
+            "index": index,
+            "name": item["file_name"],
+            "type": item["file_type"],
+            "size": len(item.get("content") or ""),
+        })
+    return sources
+
+
+def _profile_source(exclude_ids=None):
+    """The profile preferences/about that are always injected into the prompt."""
+    if "profile" in set(exclude_ids or ()):
+        return None
+    preference = session.preference or ""
+    about = session.about_user or ""
+    if not (preference or about):
+        return None
+    return {
+        "label": "Profile",
+        "size": len(preference) + len(about),
+        "detail": "preferences and about you",
+    }
+
+
+def _context_manifest(memory_items=None, skill_sources=None, file_sources=None, profile=None):
+    """The manifest of one answer: one row per source that reached the model."""
+    entries = []
+    for node in memory_items or []:
+        entries.append({
+            "id": f"memory:{node['id']}",
+            "kind": "memory",
+            "label": node["title"],
+            "size": int(node.get("size") or 0),
+            "detail": memory_db.CATEGORY_LABELS.get(node["category"], node["category"]),
+        })
+    for skill in skill_sources or []:
+        entries.append({
+            "id": f"skill:{skill['id']}",
+            "kind": "skill",
+            "label": skill["name"],
+            "size": int(skill.get("size") or 0),
+            "detail": skill.get("scope", ""),
+        })
+    for item in file_sources or []:
+        entries.append({
+            "id": f"file:{item['index']}",
+            "kind": "file",
+            "label": item["name"],
+            "size": int(item.get("size") or 0),
+            "detail": item.get("type", ""),
+        })
+    if profile:
+        entries.append({
+            "id": "profile",
+            "kind": "profile",
+            "label": profile["label"],
+            "size": int(profile.get("size") or 0),
+            "detail": profile.get("detail", ""),
+        })
+    return entries
+
+
+def _reply(text, title="Solaris", notes=None, sources=None, pulse=None, context=None):
     return {
         "type": "reply",
         "title": title,
@@ -277,6 +356,7 @@ def _reply(text, title="Solaris", notes=None, sources=None, pulse=None):
         "sources": sources or [],
         "speak": session.tts_engine != "off",
         "pulse": pulse,
+        "context": context or [],
     }
 
 
@@ -790,6 +870,104 @@ def remove_attachment(index):
 
 
 # --------------------------------------------------------------------------
+# Attachment -> study trail
+# --------------------------------------------------------------------------
+
+STUDY_PLAN_PROMPT = """You are a tutor. Turn the study material below into a study trail \
+that someone can work through later.
+
+FILE: {file_name}
+
+=== MATERIAL ===
+{material}
+=== END MATERIAL ===
+
+Answer in exactly this format and nothing else:
+TITLE: <short human title for the topic, no quotes, no trailing punctuation>
+DESCRIPTION: <one line on what the trail covers>
+CONCEPT: <concept name> | <one line note>
+CONCEPT: <concept name> | <one line note>
+
+Give 3 to 8 CONCEPT lines, each note one line long."""
+
+
+def trail_from_attachment(index):
+    """Turn an attached file into a study trail: title, concepts and a note.
+
+    The model writes the plan. A plan that cannot be read still leaves a
+    usable trail built from the file name, and a failure after the trail was
+    created removes it again — no half-built trail survives.
+    """
+    items = list(attachment.get_all_attachments().items())
+    if not isinstance(index, int) or index < 0 or index >= len(items):
+        raise ValueError("Pick an attached file first.")
+    path, item = items[index]
+    name = item.get("file_name") or os.path.basename(path)
+    user_id = session.user_id
+    if user_id is None:
+        raise ValueError("Select a profile first.")
+
+    plan = _study_plan(name, item.get("content") or "") or {}
+    title = (plan.get("title") or "").strip().rstrip(".") or _title_from_file(name)
+    description = (plan.get("description") or "").strip() or f"Study trail from {name}."
+    concepts = plan.get("concepts") or [{"name": title, "note": f"Read {name}."}]
+
+    trail_id = study_db.create_trail(user_id, title, description)
+    try:
+        for concept in concepts:
+            study_db.add_concept(
+                user_id, trail_id, concept["name"], mastery="new", note=concept.get("note", ""),
+            )
+        study_db.add_note(user_id, trail_id, title, f"{description}\n\nSource: {name}")
+    except Exception as e:
+        study_db.delete_trail(user_id, trail_id)
+        system_log("STUDY", "ERROR", f"Study trail from {name} failed: {e}")
+        raise
+    return study_db.get_trail(user_id, trail_id)
+
+
+def _title_from_file(name):
+    """A human title for a file: 'photosynthesis-notes.md' -> 'photosynthesis notes'."""
+    stem = re.sub(r"[_-]+", " ", os.path.splitext(name)[0]).strip()
+    return stem or name
+
+
+def _study_plan(file_name, text):
+    """Ask the model for a study plan; None when it cannot answer or be read."""
+    material = (text or "").strip()[:20000]  # shortcut: only the first 20k characters reach the model
+    prompt = STUDY_PLAN_PROMPT.format(file_name=file_name, material=material or "(no text could be extracted)")
+    notes = []
+    try:
+        raw = ask_ai(prompt, notes)
+    except Exception as e:
+        system_log("STUDY", "WARNING", f"No study plan for {file_name}: {e}")
+        return None
+    return _parse_study_plan(raw)
+
+
+def _parse_study_plan(raw):
+    """Read the TITLE / DESCRIPTION / CONCEPT lines out of a model answer."""
+    plan = {"title": "", "description": "", "concepts": []}
+    for line in (raw or "").splitlines():
+        label, _, value = line.partition(":")
+        label = label.strip().strip("-*# ").upper()
+        value = value.strip().strip('"').strip()
+        if label == "TITLE":
+            plan["title"] = value
+        elif label == "DESCRIPTION":
+            plan["description"] = value
+        elif label == "CONCEPT":
+            name, _, note = value.partition("|")
+            name = name.strip().strip('"').strip()
+            if name:
+                plan["concepts"].append({"name": name, "note": note.strip().strip('"').strip()})
+    if not plan["title"] and not plan["concepts"]:
+        return None
+    plan["concepts"] = plan["concepts"][:8]
+    return plan
+
+
+# --------------------------------------------------------------------------
 # Voice
 # --------------------------------------------------------------------------
 
@@ -846,14 +1024,20 @@ def synthesize(text, engine):
 EXIT_WORDS = {"exit", "quit", "close", "bye", "goodbye"}
 
 
-def send(message, input_mode="text"):
-    """Run one message (chat or command) through the full pipeline."""
+def send(message, input_mode="text", exclude_ids=None, record=True):
+    """Run one message (chat or command) through the full pipeline.
+
+    exclude_ids drops manifest sources from the prompt (a re-ask with one
+    source removed). record=False keeps the whole turn out of the conversation
+    history, so a re-ask never repeats the user's message.
+    """
     text = (message or "").strip()
     if not text:
         return _error("Empty message.")
     if session.user_id is None:
         return _error("No profile selected. Pick one on the home page.")
 
+    excluded = set(exclude_ids or ())
     session.last_input = input_mode
     upper = text.upper()
 
@@ -901,24 +1085,39 @@ def send(message, input_mode="text"):
             session.conv_history = session.conv_history[-7:]
             system_log("AI", "INFO", f"Current session summarised. Memories: {len(session.imp_conv_history)}")
 
-        session.conv_history.append({"role": "user", "content": text})
-        session.session_history.append({"role": "user", "content": text})
+        if record:
+            session.conv_history.append({"role": "user", "content": text})
+            session.session_history.append({"role": "user", "content": text})
 
+        history = session.conv_history[-25:]
+        if not record and history and history[-1]["role"] == "assistant":
+            # A re-ask must not see the previous answer: it was written with the
+            # very source we are removing.
+            history = history[:-1]
         conversation_text = "\n".join(
-            f"{msg['role'].title()}: {msg['content']}" for msg in session.conv_history[-25:]
+            f"{msg['role'].title()}: {msg['content']}" for msg in history
         )
         session.memories = history_db.access_history(session.user_id)
         summary_text = "\n\n".join(f"[{timestamp}]\n{summary}" for summary, timestamp in session.memories)
-        workspace_memory, used_memories = memory_db.build_context(session.user_id, text)
+        workspace_memory, used_memories = memory_db.build_context(
+            session.user_id, text, exclude_ids=excluded,
+        )
         memory_text = summary_text
         if workspace_memory:
             memory_text = f"{summary_text}\n\nWorkspace memories:\n{workspace_memory}".strip()
-        attachment_context = attachment.get_combined_attachment_context()
-        skill_context = skills.get_context()
+        attachment_context = attachment.get_combined_attachment_context(exclude_ids=excluded)
+        file_sources = _file_sources(excluded)
+        bundle = skills.context_bundle(exclude_ids=excluded)
+        skill_context = bundle["text"]
+        skill_sources = bundle["skills"]
 
         prompt = helper_ai.build_prompt(
-            session.name, session.preference, session.imp_conv_history, conversation_text,
-            memory_text, text, session.about_user, attachment_context, skill_context,
+            session.name,
+            "" if "profile" in excluded else session.preference,
+            session.imp_conv_history, conversation_text,
+            memory_text, text,
+            "" if "profile" in excluded else session.about_user,
+            attachment_context, skill_context,
         )
 
     notes = []
@@ -934,8 +1133,9 @@ def send(message, input_mode="text"):
         return _error(f"An error occurred: {_short(e, 300)}")
 
     with session.lock:
-        session.conv_history.append({"role": "assistant", "content": response})
-        session.session_history.append({"role": "assistant", "content": response})
+        if record:
+            session.conv_history.append({"role": "assistant", "content": response})
+            session.session_history.append({"role": "assistant", "content": response})
 
     session.used_memories = used_memories
     pulse = build_pulse(
@@ -948,7 +1148,10 @@ def send(message, input_mode="text"):
     session.last_route = pulse
     _offer_memory_suggestions(session.user_id, text)
 
-    return _reply(response, notes=notes, pulse=pulse)
+    manifest = _context_manifest(
+        used_memories, skill_sources, file_sources, _profile_source(excluded),
+    )
+    return _reply(response, notes=notes, pulse=pulse, context=manifest)
 
 
 def _offer_memory_suggestions(user_id, message):
@@ -1075,8 +1278,11 @@ def follow_up(action, question, answer):
 
     # Refinements see the same skill and file context as the original reply,
     # so the pulse stays honest about what the model was given.
-    skill_context = skills.get_context()
+    bundle = skills.context_bundle()
+    skill_context = bundle["text"]
+    skill_sources = bundle["skills"]
     attachment_context = attachment.get_combined_attachment_context()
+    file_sources = _file_sources()
     context_note = "\n\n".join(part for part in (skill_context, attachment_context) if part)
     if context_note:
         context_note += "\n\n"
@@ -1109,7 +1315,8 @@ def follow_up(action, question, answer):
         latency_ms=int((time.time() - started) * 1000),
     )
     session.last_route = pulse
-    return _reply(response, title=control["label"], notes=notes, pulse=pulse)
+    manifest = _context_manifest(memory_items, skill_sources, file_sources)
+    return _reply(response, title=control["label"], notes=notes, pulse=pulse, context=manifest)
 
 
 # --------------------------------------------------------------------------
@@ -1203,3 +1410,98 @@ def missing_imports():
         except Exception:
             missing.append(package)
     return missing
+
+
+# --------------------------------------------------------------------------
+# Skill drafts (turn the current thread into a reusable skill)
+# --------------------------------------------------------------------------
+
+# The prompt text lives here, never in the browser.
+SKILL_DRAFT_PROMPT = (
+    "Turn this conversation into a reusable skill: a short set of instructions "
+    "that makes a later answer better in the same situation.\n\n"
+    "Answer in exactly this format and nothing else:\n"
+    "TITLE: <short name, max six words>\n"
+    "DESCRIPTION: <one line, max 100 characters>\n"
+    "DEFAULT PROMPT: <the message that starts the skill, one line>\n"
+    "BODY:\n<the instructions to follow, markdown, max 200 words>\n\n"
+    "Conversation:\n"
+)
+
+
+def _parse_skill_draft(text):
+    """Read the labelled draft format the model was asked for."""
+    fields = {}
+    body = []
+    in_body = False
+    for line in str(text or "").splitlines():
+        if in_body:
+            body.append(line)
+            continue
+        if line.strip().startswith("```"):
+            continue
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip().strip("*# ").lower()
+        if key == "body":
+            in_body = True
+            if value.strip():
+                body.append(value.strip())
+            continue
+        if key in ("title", "description", "default prompt", "default_prompt"):
+            fields[key] = value.strip()
+    title = fields.get("title", "").strip()
+    instructions = "\n".join(body).strip()
+    if not title or not instructions:
+        return None
+    return {
+        "title": title,
+        "description": fields.get("description", "").strip(),
+        "default_prompt": fields.get("default prompt", fields.get("default_prompt", "")).strip(),
+        "body": instructions,
+    }
+
+
+def _fallback_skill_draft(history):
+    """A draft built from the thread itself, for when the model cannot help."""
+    users = [str(item.get("content") or "").strip() for item in history
+             if item.get("role") == "user"]
+    answers = [str(item.get("content") or "").strip() for item in history
+               if item.get("role") == "assistant"]
+    title = (users[0].splitlines() or [""])[0].strip()[:60] if users else ""
+    title = title.replace("/", " ").replace("\\", " ").replace("..", " ").strip() or "Saved conversation"
+    body = (
+        f"User request:\n{users[-1] if users else ''}\n\n"
+        f"Answer that worked:\n{answers[-1] if answers else ''}\n\n"
+        "Follow the approach above when a similar request comes up again."
+    ).strip()
+    return {
+        "title": title,
+        "description": f"Reusable instructions captured from this conversation: {title}",
+        "default_prompt": f"Apply the {title} skill.",
+        "body": body,
+    }
+
+
+def draft_skill_from_thread():
+    """Draft a skill from the recent conversation. Never raises.
+
+    When the model is unavailable or its answer cannot be parsed, the draft is
+    built from the thread itself so the editor always has something to edit.
+    """
+    history = [item for item in list(session.conv_history)[-12:] if isinstance(item, dict)]
+    fallback = _fallback_skill_draft(history)
+    if not history:
+        return fallback
+    conversation = "\n".join(
+        f"{str(item.get('role') or 'user').title()}: {str(item.get('content') or '')}"
+        for item in history
+    )
+    notes = []
+    try:
+        response = ask_ai(SKILL_DRAFT_PROMPT + conversation, notes)
+    except Exception as e:
+        system_log("SYSTEM", "WARNING", f"Skill draft failed: {e}")
+        return fallback
+    return _parse_skill_draft(response) or fallback

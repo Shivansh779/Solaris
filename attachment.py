@@ -363,13 +363,23 @@ def _format_attachments_context(attachments) -> str:
     return "\n".join(parts)
 
 
-def get_combined_attachment_context() -> str:
+def get_combined_attachment_context(exclude_ids=None) -> str:
     """
     Get the content of the *selected* attachments combined into a single
     context string. Unselected files stay available in the shelf (and keep
     their extracted stats) but never reach a model.
+
+    An excluded file (manifest id "file:0" or the plain index) is left out.
     """
-    return _format_attachments_context(selected_attachments())
+    excluded = set(exclude_ids or ())
+    chosen = []
+    for index, item in enumerate(_attachment_context.values()):
+        if not item.get("selected", True):
+            continue
+        if f"file:{index}" in excluded or str(index) in excluded:
+            continue
+        chosen.append(item)
+    return _format_attachments_context(chosen)
 
 
 def get_attachments_for_vision() -> List[Dict[str, Any]]:

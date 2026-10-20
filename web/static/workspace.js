@@ -103,7 +103,90 @@ function attachAnswerSurface(wrapper, payload, question) {
   if (payload.type !== 'reply' || !payload.raw) return;
   const pulse = renderPulse(payload);
   if (pulse) wrapper.appendChild(pulse);
+  const manifest = renderManifest(payload, question, wrapper);
+  if (manifest) wrapper.appendChild(manifest);
   wrapper.appendChild(buildDial(payload, question));
+}
+
+// ---------------------------------------------------------------- context manifest
+
+// One quiet row per source that went into the answer. Server text is only ever
+// set as text — never as HTML.
+function renderManifest(payload, question, wrapper) {
+  const items = Array.isArray(payload.context) ? payload.context : [];
+  if (!items.length) return null;
+
+  const details = document.createElement('details');
+  details.className = 'context-manifest';
+
+  const summary = document.createElement('summary');
+  summary.textContent = `What went into this answer · ${items.length} source${items.length === 1 ? '' : 's'}`;
+  details.appendChild(summary);
+
+  const list = document.createElement('div');
+  list.className = 'manifest-list';
+
+  items.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'manifest-item';
+
+    const kind = document.createElement('span');
+    kind.className = 'manifest-kind';
+    kind.textContent = item.kind;
+
+    const label = document.createElement('span');
+    label.className = 'manifest-label';
+    label.textContent = item.label || item.id;
+    if (item.detail) label.title = item.detail;
+
+    const size = document.createElement('span');
+    size.className = 'manifest-size muted small';
+    size.textContent = `${item.size || 0} chars`;
+
+    const drop = document.createElement('button');
+    drop.type = 'button';
+    drop.className = 'manifest-drop';
+    drop.textContent = 'without this';
+    drop.addEventListener('click', () => reaskWithout(drop, item.id, question, payload, wrapper));
+
+    row.append(kind, label, size, drop);
+    list.appendChild(row);
+  });
+
+  details.appendChild(list);
+  return details;
+}
+
+// Re-ask the same question without one source; the new reply lands right below
+// the current one.
+async function reaskWithout(button, id, question, payload, wrapper) {
+  button.disabled = true;
+  const working = document.createElement('span');
+  working.className = 'manifest-working muted small';
+  working.textContent = 'asking again…';
+  button.parentNode.appendChild(working);
+  try {
+    const result = await api('/api/context/reask', {
+      method: 'POST',
+      body: JSON.stringify({
+        question: question || '',
+        answer: payload.raw || '',
+        exclude: [id],
+      }),
+    });
+    if (result.type === 'reply') {
+      const fresh = renderReply(result, true, question);
+      if (fresh && wrapper) wrapper.after(fresh);
+      toast('Answered again without that source.', 'ok');
+    } else {
+      toast(result.message || result.error || 'The re-ask failed.', 'error');
+    }
+  } catch (err) {
+    toast(`The re-ask failed: ${err.message}`, 'error');
+  } finally {
+    working.remove();
+    button.disabled = false;
+  }
 }
 
 function buildDial(payload, question) {
@@ -133,6 +216,7 @@ function buildDial(payload, question) {
   // Keeping actions: these write to the workspace, not to the model.
   dial.appendChild(saveTrailButton(payload, question));
   dial.appendChild(saveCheckpointButton(payload));
+  dial.appendChild(saveSkillButton(payload, question));
   dial.appendChild(copyButton(payload));
   return dial;
 }
@@ -240,6 +324,46 @@ function saveCheckpointButton(payload) {
       }
       closeModal();
       toast('Checkpoint saved.', 'ok');
+      Shelf.refresh();
+    });
+  });
+}
+
+// Turn this thread into a Markdown skill: the model drafts it, the user edits
+// the draft, the server writes the file the skill loader picks up.
+function saveSkillButton(payload, question) {
+  return plainDialButton('Save as skill', async () => {
+    const result = await api('/api/skills/draft', { method: 'POST', body: '{}' });
+    const draft = result.draft || {};
+    openModal('Save this thread as a skill', `
+      <p class="muted small">The draft comes from this conversation. Edit it before it is written.</p>
+      <label>Title <input id="skill-title" type="text" value="${escapeHtml(draft.title || question || 'New skill')}"></label>
+      <label>Description <input id="skill-desc" type="text" value="${escapeHtml(draft.description || '')}"></label>
+      <label>Default prompt <input id="skill-prompt" type="text" value="${escapeHtml(draft.default_prompt || '')}"></label>
+      <label>Instructions <textarea id="skill-body" rows="8">${escapeHtml(draft.body || payload.raw || '')}</textarea></label>
+      <label>Scope <select id="skill-scope">
+        <option value="project">Project — shared with this repo</option>
+        <option value="user">Personal — only this machine</option></select></label>
+      <div class="actions"><button class="btn btn-primary" id="skill-save">Save skill</button>
+        <span class="muted small" id="skill-status"></span></div>`);
+
+    document.getElementById('skill-save').addEventListener('click', async () => {
+      const saved = await api('/api/skills/save', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: document.getElementById('skill-title').value,
+          description: document.getElementById('skill-desc').value,
+          default_prompt: document.getElementById('skill-prompt').value,
+          body: document.getElementById('skill-body').value,
+          scope: document.getElementById('skill-scope').value,
+        }),
+      });
+      if (!saved.ok) {
+        document.getElementById('skill-status').textContent = saved.error || 'Could not save.';
+        return;
+      }
+      closeModal();
+      toast(saved.skill ? `Skill saved: ${saved.skill.name}` : 'Skill saved.', 'ok');
       Shelf.refresh();
     });
   });
@@ -547,7 +671,27 @@ const Shelf = {
         handlePayload(payload, '');
       });
 
-      box.append(main, remove);
+      const study = document.createElement('button');
+      study.type = 'button';
+      study.className = 'shelf-link';
+      study.textContent = 'Study';
+      study.title = `Create a study trail from ${item.name}`;
+      study.setAttribute('aria-label', `Create a study trail from ${item.name}`);
+      study.addEventListener('click', async () => {
+        const payload = await api('/api/study/from-attachment', {
+          method: 'POST',
+          body: JSON.stringify({ index: item.index }),
+        });
+        if (!payload.ok) {
+          toast(payload.error || 'Could not create the study trail.', 'error');
+          return;
+        }
+        const trail = payload.trail || {};
+        toast(`Study trail ready: ${trail.title || item.name}`, 'ok');
+        this.refresh();
+      });
+
+      box.append(main, remove, study);
       grid.appendChild(box);
     });
   },

@@ -49,6 +49,10 @@ System_Logs.txt
 !Skills/
 !Skills/**
 
+# Favicon assets are app content
+!web/static/favicon/
+!web/static/favicon/**
+
 # AGENTS file
 AGENTS.md
 PRODUCT.md
