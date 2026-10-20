@@ -1,7 +1,7 @@
 # <u>Solaris – Personal AI Chatbot</u>
 
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.14+-3776AB?logo=python&logoColor=white)
 ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![Gemini](https://img.shields.io/badge/LLM-Gemini-4285F4)
 ![OpenRouter](https://img.shields.io/badge/Fallback-OpenRouter-orange)
@@ -15,7 +15,7 @@ A local, profile-aware AI chatbot with persistent memory, multiple LLM fallbacks
 
 Solaris is designed to maintain personalized conversations across sessions by combining conversation history, summarized memories, and user preferences. It supports multiple user profiles, private accounts, and graceful fallback between different AI providers.
 
-Solaris now runs as a **self-hosted web interface**: `python chatbot.py` starts a local server (`127.0.0.1`), opens your browser, and gives you chat, settings and a guided setup wizard — no more editing `.env` or `config.json` by hand.
+Solaris now runs as a **self-hosted web interface**: `uv run python chatbot.py` starts a local server (`127.0.0.1`), opens your browser, and gives you chat, settings and a guided setup wizard — no more editing `.env` or `config.json` by hand.
 
 ---
 
@@ -25,7 +25,7 @@ Solaris now runs as a **self-hosted web interface**: `python chatbot.py` starts 
 * 🧭 Setup wizard: dependency check, best-local-model pick via `whichllm`, API keys, models, profile
 * 🔑 API-key vault: keys editable from the UI, protected by a generated 6-character password
 * 💬 Text and voice input
-* 🔊 Text and voice output
+* 🔊 Text and voice output (EdgeTTS or KittenTTS, switchable in the header)
 * 👤 Multiple user profiles
 * 🔒 Password-protected private profiles
 * 🧠 Long-term memory using SQLite
@@ -35,6 +35,10 @@ Solaris now runs as a **self-hosted web interface**: `python chatbot.py` starts 
 * 📎 File attachments (md, pdf, jpg, png) as session context
 * 🗂️ Living Workspace shelf — collapsible task/files/skills/context panel on `/chat`
 * 🧩 Skills — reusable Markdown playbooks in `Skills/` (project) and `~/.solaris/skills/` (user), toggled into prompt context or run as a visible prompt
+* 🌌 Constellation Memory — a `/memory` page of remembered facts (active / suggested / archived)
+* 🛤️ Study Trails — a `/study` page with trails, concepts, notes and quiz progress
+* 🎛️ Answer controls — refine any reply (shorter, deeper, simpler, …) without retyping the question
+* 🛡️ Privacy pulse — every reply shows whether it came from local, cloud or hybrid models
 * 👁️ `.VISION` image analysis with vision-capable models
 * 🔎 `.WEB` real-time web search with multiple depths
 * 📚 Study commands (detail, simple, quiz, timeline, compare, steps)
@@ -51,26 +55,30 @@ The Important files of this project and their use cases are as follows:
 |---|---|
 |chatbot.py	|Launcher — starts the web interface (or `--terminal` for the classic TUI)
 |core.py	|Shared conversation core: session state, chat pipeline, commands, specialists, voice helpers
-|web/app.py	|Flask app: pages (landing, chat, settings, wizard) and the JSON API
-|web/jobs.py	|Background job runner for installs and `whichllm` runs
-|env_io.py	|Reads/updates `.env` from the UI without touching comments
+|config.py	|Provider registry and API client initializers (Gemini, OpenRouter, NVIDIA, Groq, Ollama Cloud)
 |config_io.py	|Reads/writes `config.json` and `settings.json` with `_backups/` snapshots
+|env_io.py	|Reads/updates `.env` from the UI and keeps `os.environ` in sync
+|model_state.py	|Session model availability (429/404 disable, 503 cooldown)
+|web/app.py	|Flask app: pages (landing, chat, memory, study, settings, wizard) and the JSON API
+|web/access.py	|Profile unlock state and server-side authorization
+|web/api_workspace.py	|Memory, study trails, workspace shelf and answer-control routes
+|web/jobs.py	|Background job runner for installs and `whichllm` runs
 |terminal.py	|Original terminal (TUI) interface, still runnable with `--terminal`
-|helper_ai.py	|Preference extraction and session summarization
+|helper_ai.py	|Preference/about extraction, session summarization, prompt building
 |specialist_ai.py	|Specialist flows for `.BETTER` (Writer, Programmer, Strategist)
 |study_ai.py	|Study command prompt builders for `.DETAIL`, `.QUIZ`, `.TIMELINE`, etc.
 |web_search.py	|Web search providers for the `.WEB` command (Tavily, Firecrawl)
 |vision_ai.py	|Image analysis for the `.VISION` command (NVIDIA NIM models)
 |attachment.py	|File attachment system — ingestion, temporary context, vision helpers
 |skills.py	|Markdown skills: discovery, YAML frontmatter, activation, prompt context
-|config.py	|Provider API client initializers (Gemini, OpenRouter, NVIDIA, Groq, Ollama Cloud)
-|model_control.py	|Model selection and fallback control
-|index.py	|Entry-point helpers and startup orchestration
-|main_db.py	|Profile management and user database
-|history_db.py	|Long-term conversation history storage
+|main_db.py	|Profiles, credential hashing, access state, migrations
+|history_db.py	|Long-term conversation history and `web_log`
+|memory_db.py	|Constellation Memory nodes
+|study_db.py	|Study trails, concepts and saved notes
+|workspace_db.py	|Session task and checkpoint
 |tui_utils.py	|Terminal UI helpers (markdown rendering, tables, prompts)
 |spinner.py	|Loading spinners and recording timer
-|requirements.txt	|Project dependencies
+|requirements.txt	|Pinned dependency export (source of truth is `pyproject.toml` / `uv.lock`)
 
 ---
 ## <u> Architecture </u>
@@ -95,19 +103,21 @@ The assistant maintains three layers of context:
 
 User preferences are automatically summarized into concise behavioral instructions, allowing Solaris to remain consistent across multiple sessions.
 
-On top of this sits **temporary file context** — files you attach with `.ATTACH` are held in memory for the session only. They inform specialist, vision, and chat responses but are **never** written to permanent memory.
+On top of this sits **temporary file context** — files you attach (paperclip on the web, `.ATTACH` in the terminal) are held in memory for the session only. They inform specialist, vision, and chat responses but are **never** written to permanent memory.
 
 ---
 
 ### <u> Profiles 👤 </u>
 
-At startup, Solaris allows you to:
+At startup, the home page lists every profile and what it needs:
 
-* Create new profiles
-* Open existing profiles
-* Update profile preferences
-* Activate or deactivate profiles
-* Secure private profiles with a numeric password
+* Create new profiles — name, behaviour preference and "about you", summarized into the profile
+* Open existing profiles — public ones open directly
+* Update profile preferences from the profile settings
+* Activate or deactivate profiles — a deactivated profile needs its 8-character activation code
+  (shown once when it was created) before it can be opened again
+* Secure private profiles with a password (at least 4 characters) — the unlock lasts for the
+  current browser session
 
 ---
 
@@ -118,14 +128,14 @@ Choose your preferred interaction style:
 **Input**
 
 * Text
-* Voice
+* Voice — the mic button records up to 5 seconds (click it again to stop early), then transcribes
 
 **Output**
 
 * Text
-* Speech
+* Speech — Off / EdgeTTS / KittenTTS, switched from the header selector
 
-You can also switch between supported text-to-speech backends during runtime with `.VOICE`.
+`python chatbot.py` is the only command needed; typing `.VOICE` just points you at the header selector.
 
 ---
 
@@ -155,16 +165,16 @@ This ensures the assistant continues functioning even if cloud providers fail.
 | Command | Description|
 | --- | --- |
 |`.HELP`	| Display available commands
-|`.CHANGE`	|Switch to another public profile
-|`.VOICE`	|Change the speech backend
-|`.ABOUT` |Displays Information about Solaris, and Profile Details
-|`.UPDATE_PRIVACY` | To Update Privacy Settings
-|`.CLEAR` | Clears the terminal window. Conversation, memory, and context remain unchanged.
-|`.ATTACH` | Attach a file (md, pdf, jpg, png) as temporary session context
-|`.DETACH` | Remove a file attachment from session context
+|`.CHANGE`	|Switch profiles (or use the profile menu in the header)
+|`.BETTER`	|Ask a specialist (Writer / Programmer / Strategist)
+|`.VOICE`	|Points at the header's text-to-speech selector (Off / EdgeTTS / KittenTTS)
+|`.ABOUT` |Profile and program information
+|`.CLEAR` | Clears the chat view. Conversation, memory, and context remain unchanged.
+|`.ATTACH` | Use the paperclip button to attach a file (web); absolute path in the terminal
+|`.DETACH` | List attachments and include or remove them
 |`.VISION[:question]` | Analyze attached images with a vision-capable model
 |`.WEB[:quick\|:standard\|:deep] <question>` | Search the web for real-time information (primary: Tavily, fallback: Firecrawl)
-|exit, quit, bye, goodbye, close	|Save the session summary and exit
+|exit, quit, bye, goodbye, close	|Save the session summary and end the session
 
 ### Study Commands
 
@@ -181,7 +191,8 @@ This ensures the assistant continues functioning even if cloud providers fail.
 
 ### <u> File Attachments 📎 </u>
 
-Attach files so Solaris can work with their actual content:
+Attach files so Solaris can work with their actual content. In the web interface use the paperclip
+button (or drop files onto the chat); in the terminal, `.ATTACH` takes an absolute path:
 
 ```
 .ATTACH /path/to/notes.md
@@ -197,7 +208,9 @@ Attach files so Solaris can work with their actual content:
 
 * Attachments are **temporary** — held only for the session and cleared on exit.
 * They are **never** written to the database or long-term memory.
-* `.DETACH` shows a numbered list and removes your choice.
+* Every attachment becomes a box in the **Files** shelf; only selected boxes (lime ring) are
+  assembled into the prompt, so you can keep a file's stats yet leave it out of the answer.
+* `.DETACH` lists the attachments so you can include or remove one.
 
 After attaching, Solaris gives a subtle suggestion for the best next step:
 * Markdown → use `.BETTER` for context-aware specialist answers
@@ -222,13 +235,14 @@ Get a higher-quality answer by routing your request through a dedicated speciali
 
 1. **Writer** — polished, convincing prose
 2. **Programmer** — code-first technical solutions
-3. **Strategist** — a step-by-step reasoning flow that interviews you with targeted questions before drafting a full strategy
+3. **Strategist** — a step-by-step reasoning flow that interviews you with targeted questions before drafting a full strategy. The questions appear as a form (one field each — leave a field blank for N/A), and the draft ends with an inline **Approve** / **Ask the Secondary Model** row.
 
 `.BETTER` is now **context-aware**:
 
-* When files are attached, Solaris shows a numbered picker and asks which files the specialist should take into account.
+* The specialist dialog has an **Include attached files** checkbox, and only the files selected in the
+  Files shelf are taken into account.
 * Selected files shape the Strategist's questions to suit your expertise and material, rather than generic questions.
-* With one file attached it is used automatically; with none, everything works exactly as before.
+* With no files attached, everything works exactly as before.
 
 ---
 
@@ -264,9 +278,28 @@ Search the web for real-time information when chat memory is not enough:
 
 ---
 
+### <u> Constellation Memory & Study Trails 🌌 </u>
+
+Two pages hold what Solaris learns over time:
+
+* **`/memory` (Constellation Memory)** — remembered facts grouped by category. Statements extracted from chat land as **suggestions**; only what you approve becomes active and reaches the prompt.
+* **`/study` (Study Trails)** — a trail per topic with concepts (new / practicing / confident / revisit) and saved notes. A successful `.QUIZ` on a trail's topic advances that trail.
+
+Neither page uses points, streaks or badges.
+
+---
+
+### <u> Refining Answers 🎛️ </u>
+
+Every reply has refinement controls underneath it (shorter, deeper, simpler, …). A refinement runs
+the same chat pipeline as a normal message — with the same context — and appends both the request and
+the new answer to the conversation history.
+
+---
+
 ## <u>Requirements 📌</u>
 
-* Python 3.11+
+* Python 3.14+
 * SQLite
 * Microphone (for voice input)
 * Audio output device (for speech)
@@ -280,11 +313,19 @@ Search the web for real-time information when chat memory is not enough:
 
 ## <u>Installation 🛠️</u>
 
-Install the required dependencies:
+The project is managed with [`uv`](https://docs.astral.sh/uv/) and targets Python 3.14. From the repo root:
+
+```bash
+uv sync
+```
+
+Or with plain pip:
 
 ```bash
 pip install -r requirements.txt
 ```
+
+`requirements.txt` is a pinned export of `pyproject.toml`; `uv.lock` is the source of truth for versions.
 
 The setup wizard can also do this for you on first run (it lists anything missing and installs it).
 
@@ -327,8 +368,12 @@ Web keys are optional at setup: choose "No" in the wizard and `.WEB` will ask fo
 Start the web interface (default):
 
 ```bash
-python chatbot.py
+uv run python chatbot.py
+# or, with the project venv:
+.venv/bin/python chatbot.py
 ```
+
+(`python` may not be on PATH — use `uv run` or `.venv/bin/python`.)
 
 Solaris then:
 
@@ -340,7 +385,7 @@ Solaris then:
 The classic terminal interface is still available:
 
 ```bash
-python chatbot.py --terminal
+uv run python chatbot.py --terminal
 ```
 
 ---
@@ -424,14 +469,35 @@ Stores:
 
 Raw retrieved web content is intentionally <b>not</b> persisted to keep the database small.
 
+### <u>profile_memory</u>
+
+**Managed by memory_db.py**
+
+* Constellation Memory nodes: title, body, category and status (`active` / `suggested` / `archived`)
+* `suggested` nodes are extracted statements waiting for your approval; only `active` nodes reach the prompt
+
+### <u>study_trail / study_concept / study_note</u>
+
+**Managed by study_db.py**
+
+* Study trails, their concepts (mastery: new / practicing / confident / revisit) and saved notes
+* A successful `.QUIZ` on the same topic advances the matching trail
+
+### <u>workspace_task / workspace_checkpoint</u>
+
+**Managed by workspace_db.py**
+
+* The current task for the session
+* The checkpoint (goal, decisions, open questions, next step) — written only when you save it
+
 ---
 
 ## <u>Notes 📝</u>
 
 * Voice input records a short audio sample before transcription (5s in the terminal, 5s via the browser mic button, stop-able early).
-* Private profiles are protected using a numeric password; the API-key password (6 characters, hashed) is a separate, app-wide credential stored in `user_data.api_password_hash`.
+* Private profiles are protected with a password (at least 4 characters); the API-key password (6 characters, hashed) is a separate, app-wide credential stored in `user_data.api_password_hash`.
 * Deactivated profiles require an activation code before reuse.
-* If cloud providers become unavailable, Solaris automatically falls back to Ollama (when configured) — the web UI shows which model answered and why in small notes under each reply.
+* If cloud providers become unavailable, Solaris automatically falls back to Ollama (when configured). Every reply carries a **privacy pulse** naming the provider/model that actually answered (local, cloud, hybrid or unknown), with notes explaining any fallback.
 * Attachments never persist beyond the session — use `.BETTER`, `.VISION`, or normal chat to work with them while they last.
 * The web interface binds to `127.0.0.1` only; it is not reachable from other machines.
 

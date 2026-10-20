@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <div class="messages" id="messages">
+    <div class="messages" id="messages" data-profile-name="{{ status.profile.name if status.profile else 'You' }}">
       <div class="msg msg-system">
         <div class="bubble">Session started for <strong>{{ status.profile.name if status.profile else 'you' }}</strong>.
           Type <code>.HELP</code> for commands, use the paperclip to attach files, or the mic to dictate.</div>

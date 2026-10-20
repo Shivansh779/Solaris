@@ -23,14 +23,22 @@ let lastRetry = null;
 
 // ---------------------------------------------------------------- messages
 
+// Header row: Solaris icon + name for replies, person icon + profile name for the user.
+const USER_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0113 0"/></svg>';
+const SOLARIS_ICON = '<img src="/static/favicon/favicon.svg" alt="" width="16" height="16">';
+
 function addMessage(kind, html, meta = '') {
   const wrapper = document.createElement('div');
   wrapper.className = `msg msg-${kind}`;
-  if (meta) {
-    const metaLine = document.createElement('div');
-    metaLine.className = 'msg-meta';
-    metaLine.textContent = meta;
-    wrapper.appendChild(metaLine);
+  const isUser = kind === 'user';
+  const name = isUser ? (messages.dataset.profileName || 'You') : (kind === 'ai' ? 'Solaris' : '');
+  if (name) {
+    const tag = !isUser && meta && meta !== 'Solaris'
+      ? `<span class="msg-head-tag">${escapeHtml(meta)}</span>` : '';
+    const head = document.createElement('div');
+    head.className = 'msg-head';
+    head.innerHTML = `${isUser ? USER_ICON : SOLARIS_ICON}<span>${escapeHtml(name)}</span>${tag}`;
+    wrapper.appendChild(head);
   }
   const bubble = document.createElement('div');
   bubble.className = 'bubble';

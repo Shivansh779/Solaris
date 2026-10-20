@@ -4,12 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Solaris{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon/favicon-96x96.png') }}" sizes="96x96">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon/favicon.svg') }}">
+  <link rel="shortcut icon" href="{{ url_for('static', filename='favicon/favicon.ico') }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}">
+  <link rel="manifest" href="{{ url_for('static', filename='favicon/site.webmanifest') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/">
-      <span class="brand-mark" aria-hidden="true">✦</span> Solaris
+      <img class="brand-mark" src="{{ url_for('static', filename='favicon/favicon.svg') }}" alt="" width="18" height="18" aria-hidden="true"> Solaris
     </a>
     <nav class="nav">
       <a href="/" class="{{ 'active' if request.path == '/' else '' }}">Home</a>
