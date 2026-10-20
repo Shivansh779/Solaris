@@ -45,5 +45,9 @@ System_Logs.txt
 *.jpg
 *.png
 
+# Project skills are app content, not test fixtures
+!Skills/
+!Skills/**
+
 # AGENTS file
 AGENTS.md

@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request
 import core
 import main_db
 import memory_db
+import skills
 import study_db
 import workspace_db
 import web.access as access
@@ -52,6 +53,7 @@ def workspace_state():
         "task": workspace_db.get_task(user_id),
         "checkpoint": workspace_db.get_checkpoint(user_id),
         "attachments": core.attachments_payload(),
+        "skills": skills.payload(),
         "memory": memory_db.counts(user_id),
         "study": study_db.summary(user_id),
         "route": core.session.last_route,
@@ -372,3 +374,39 @@ def answer_control():
         data.get("answer", ""),
     )
     return jsonify(payload)
+
+
+# ------------------------------------------------------------------ skills
+
+
+@bp.get("/api/skills")
+def skills_list():
+    _user_id, error = _guard()
+    if error:
+        return error
+    return jsonify({"ok": True, **skills.payload()})
+
+
+@bp.post("/api/skills/toggle")
+def skills_toggle():
+    _user_id, error = _guard()
+    if error:
+        return error
+    data = request.get_json(force=True) or {}
+    skill_id = str(data.get("id") or "")
+    if not skills.set_active(skill_id, bool(data.get("active"))):
+        return _bad("Unknown skill.")
+    return jsonify({"ok": True, **skills.payload()})
+
+
+@bp.post("/api/skills/invoke")
+def skills_invoke():
+    _user_id, error = _guard()
+    if error:
+        return error
+    data = request.get_json(force=True) or {}
+    skill_id = str(data.get("id") or "")
+    prompt = skills.invoke_prompt(skill_id)
+    if prompt is None:
+        return _bad("This skill has no default prompt to run.")
+    return jsonify({"ok": True, "id": skill_id, "prompt": prompt})

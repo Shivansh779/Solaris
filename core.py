@@ -28,6 +28,7 @@ import history_db
 import main_db
 import memory_db
 import model_state
+import skills
 import specialist_ai
 import study_ai
 import study_db
@@ -147,6 +148,7 @@ class Session:
         if self.user_id is not None:
             history_db.store_history(self.session_start_time, self.user_id, processed)
         attachment.clear_attachment_context()
+        skills.clear_active()
         self.session_history.clear()
         self.conv_history.clear()
         self.imp_conv_history.clear()
@@ -241,6 +243,9 @@ def build_pulse(route, **extra):
         "fallbacks": route.get("fallbacks", []),
         "web_search": bool(extra.get("web_search")),
         "attachments": bool(extra.get("attachments")),
+        "files_selected": int(extra.get("files_selected") or 0),
+        "files_total": int(extra.get("files_total") or 0),
+        "skills": list(extra.get("skills") or []),
         "memories": int(extra.get("memories") or 0),
         "memory_items": extra.get("memory_items") or [],
         "study_trail": extra.get("study_trail"),
@@ -248,6 +253,18 @@ def build_pulse(route, **extra):
         "reason": extra.get("reason"),
     }
     return pulse
+
+
+def _context_counts(include_files=True):
+    """Exactly what the shelf is contributing to the next prompt."""
+    items = list(attachment.get_all_attachments().values())
+    selected = [item for item in items if item.get("selected", True)] if include_files else []
+    return {
+        "attachments": bool(selected),
+        "files_selected": len(selected),
+        "files_total": len(items),
+        "skills": [skill["name"] for skill in skills.discover() if skill["active"]],
+    }
 
 
 def _reply(text, title="Solaris", notes=None, sources=None, pulse=None):
@@ -393,7 +410,7 @@ HELP_TEXT = """# Solaris Commands
 - `.ABOUT` — profile and program information
 - `.CLEAR` — clear this chat view (context is preserved)
 - `.ATTACH` — use the attach (paperclip) button
-- `.DETACH` — list and remove attachments
+- `.DETACH` — list, include or remove attachments
 - `.VISION:question` — analyse attached images
 - `.WEB:quick|:standard|:deep question` — live web search
 - `goodbye` / `bye` / `exit` — end the session (summary is saved)
@@ -542,7 +559,7 @@ def handle_vision(question):
 
     images = attachment.get_attachments_for_vision()
     if not images:
-        return _error("No images attached. Use the paperclip button to attach an image first.")
+        return _error("No images selected. Attach an image and include it in the Files shelf first.")
     if not question.strip():
         return _error("Provide a question, for example: .VISION what is in this picture?")
 
@@ -566,7 +583,7 @@ def handle_vision(question):
     return _reply(
         response,
         title=f"Vision Analysis ({count} image{'s' if count != 1 else ''})",
-        pulse=build_pulse(route, attachments=True),
+        pulse=build_pulse(route, attachments=True, files_selected=count, files_total=count),
     )
 
 
@@ -656,19 +673,21 @@ def better(specialist, question, use_attachments=True):
         return _error(f"The {title} models are unavailable. Check your config and API keys.")
 
     context = attachment.get_combined_attachment_context() if use_attachments else ""
+    skill_context = skills.get_context()
     route = _route_from_providers(_specialist_provider_names(role_key))
-    pulse = build_pulse(route, attachments=bool(context))
+    pulse = build_pulse(route, **_context_counts(include_files=use_attachments))
 
     if specialist == "writer":
-        response = specialist_ai.writer(question, p_client, s_client, context)
+        response = specialist_ai.writer(question, p_client, s_client, context, skill_context)
         return _reply(response, title=title, pulse=pulse)
     if specialist == "coder":
-        response = specialist_ai.coder(question, p_client, s_client, context)
+        response = specialist_ai.coder(question, p_client, s_client, context, skill_context)
         return _reply(response, title=title, pulse=pulse)
 
     # Strategist: questions → answers → draft → approve / revise
-    questions = specialist_ai.questionaire(question, p_client, s_client, context)
-    session.better_state = {"goal": question, "questions": questions, "draft": None, "context": context}
+    questions = specialist_ai.questionaire(question, p_client, s_client, context, skill_context)
+    session.better_state = {"goal": question, "questions": questions, "draft": None,
+                            "context": context, "skill_context": skill_context}
     return {
         "type": "better_questions",
         "title": title,
@@ -687,7 +706,7 @@ def better_answers(answers):
         return _error("The Strategist models are unavailable. Check your config and API keys.")
     draft = specialist_ai.strategist(
         state["goal"], p_client, s_client, state["questions"], answers or "N/A",
-        attachment_context=state["context"],
+        attachment_context=state["context"], skill_context=state.get("skill_context", ""),
     )
     state["draft"] = draft
     return {"type": "better_draft", "title": "Design Draft", "raw": draft, "html": render_markdown(draft)}
@@ -707,6 +726,7 @@ def better_decision(approve):
     draft = specialist_ai.strategist(
         state["goal"], p_client, s_client, state["questions"], "N/A",
         previous_draft=state["draft"], force_secondary=True, attachment_context=state["context"],
+        skill_context=state.get("skill_context", ""),
     )
     state["draft"] = draft
     return {"type": "better_draft", "title": "Alternative Design Draft", "raw": draft, "html": render_markdown(draft)}
@@ -745,8 +765,19 @@ def attachments_payload():
             "name": item["file_name"],
             "type": item["file_type"],
             "summary": summary,
+            "detail": attachment.format_attachment_detail(item),
+            "selected": item.get("selected", True),
         })
     return items
+
+
+def set_attachment_selected(index, selected):
+    updated = attachment.set_selected(index, bool(selected))
+    if updated is None:
+        return _error("Invalid attachment number.")
+    state = "included in" if updated.get("selected", True) else "excluded from"
+    system_log("COMMAND", "INFO", f"Attachment {updated['file_name']} is {state} prompts.")
+    return {"type": "attachments", "attachments": attachments_payload()}
 
 
 def remove_attachment(index):
@@ -882,10 +913,11 @@ def send(message, input_mode="text"):
         if workspace_memory:
             memory_text = f"{summary_text}\n\nWorkspace memories:\n{workspace_memory}".strip()
         attachment_context = attachment.get_combined_attachment_context()
+        skill_context = skills.get_context()
 
         prompt = helper_ai.build_prompt(
             session.name, session.preference, session.imp_conv_history, conversation_text,
-            memory_text, text, session.about_user, attachment_context,
+            memory_text, text, session.about_user, attachment_context, skill_context,
         )
 
     notes = []
@@ -907,7 +939,7 @@ def send(message, input_mode="text"):
     session.used_memories = used_memories
     pulse = build_pulse(
         route,
-        attachments=bool(attachment_context),
+        **_context_counts(),
         memories=len(used_memories),
         memory_items=used_memories,
         latency_ms=int((time.time() - started) * 1000),
@@ -1040,9 +1072,18 @@ def follow_up(action, question, answer):
     except Exception as e:  # memory must never break a refinement
         system_log("MEMORY", "WARNING", f"Memory context skipped for refinement: {e}")
 
+    # Refinements see the same skill and file context as the original reply,
+    # so the pulse stays honest about what the model was given.
+    skill_context = skills.get_context()
+    attachment_context = attachment.get_combined_attachment_context()
+    context_note = "\n\n".join(part for part in (skill_context, attachment_context) if part)
+    if context_note:
+        context_note += "\n\n"
+
     prompt = (
         f"{control['instruction']}\n\n"
         f"{memory_note}"
+        f"{context_note}"
         f"Original question:\n{question or '(not recorded)'}\n\n"
         f"Previous answer:\n{answer}\n"
     )
@@ -1059,10 +1100,9 @@ def follow_up(action, question, answer):
         session.session_history.append({"role": "user", "content": f"({control['label']}) {question}".strip()})
         session.session_history.append({"role": "assistant", "content": response})
 
-    attachment_context = attachment.get_combined_attachment_context()
     pulse = build_pulse(
         route,
-        attachments=bool(attachment_context),
+        **_context_counts(),
         memories=len(memory_items),
         memory_items=memory_items,
         latency_ms=int((time.time() - started) * 1000),

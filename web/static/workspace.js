@@ -24,6 +24,13 @@ function pulseIcon(name) {
   return ICONS[name] || ICONS.notes;
 }
 
+function fileGlyph(type) {
+  if (type === 'pdf') return 'PDF';
+  if (type === 'markdown') return 'MD';
+  if (type === 'jpeg' || type === 'png') return 'IMG';
+  return (type || 'FILE').slice(0, 3).toUpperCase();
+}
+
 // ---------------------------------------------------------------- privacy pulse
 
 function renderPulse(payload) {
@@ -74,7 +81,8 @@ function buildTrace(pulse) {
     ['Provider', escapeHtml(pulse.provider ? providerLabel(pulse.provider) : 'not recorded')],
     ['Model', escapeHtml(pulse.model || 'not recorded')],
     ['Web search', pulse.web_search ? 'yes' : 'no'],
-    ['Attachments', pulse.attachments ? 'yes' : 'no'],
+    ['Files', pulse.files_total ? `${pulse.files_selected} of ${pulse.files_total} selected` : 'none'],
+    ['Skills', (pulse.skills || []).length ? pulse.skills.map(escapeHtml).join(', ') : 'none'],
     ['Workspace memory', String(pulse.memories || 0)],
   ];
   if (pulse.latency_ms != null && pulse.latency_ms > 0) {
@@ -299,6 +307,7 @@ const Shelf = {
 
     this.wireTask();
     this.wireCheckpoint();
+    this.wireFiles();
     this.refresh();
   },
 
@@ -397,6 +406,57 @@ const Shelf = {
     });
   },
 
+  wireFiles() {
+    const all = document.getElementById('files-select-all');
+    const none = document.getElementById('files-select-none');
+    if (all) all.addEventListener('click', () => this.setAll(true));
+    if (none) none.addEventListener('click', () => this.setAll(false));
+  },
+
+  async setSelected(index, selected) {
+    const data = await api('/api/attachments/select', {
+      method: 'POST',
+      body: JSON.stringify({ index, selected }),
+    });
+    if (!data.attachments) {
+      toast(data.message || data.error || 'Could not update the file.', 'error');
+      return;
+    }
+    refreshAttachments(data.attachments);
+  },
+
+  async setAll(selected) {
+    const items = (this.state && this.state.attachments) || [];
+    const pending = items.filter((item) => (item.selected !== false) !== selected);
+    if (!pending.length) return;
+    let payload = null;
+    for (const item of pending) {
+      // Sequential on purpose: each response is a full snapshot of the list.
+      payload = await api('/api/attachments/select', {
+        method: 'POST',
+        body: JSON.stringify({ index: item.index, selected }),
+      });
+    }
+    if (!payload || !payload.attachments) {
+      toast('Could not update the files.', 'error');
+      this.refresh();
+      return;
+    }
+    refreshAttachments(payload.attachments);
+  },
+
+  reveal(id) {
+    this.set(true);
+    const node = document.getElementById(id);
+    if (!node) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    node.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+    node.classList.remove('is-flash');
+    void node.offsetWidth;
+    node.classList.add('is-flash');
+    window.setTimeout(() => node.classList.remove('is-flash'), 1200);
+  },
+
   async refresh() {
     const data = await api('/api/workspace');
     if (!data.ok) return;
@@ -416,8 +476,9 @@ const Shelf = {
     document.getElementById('ctx-profile').textContent =
       `${state.profile.name || '—'} · ${state.profile.visibility || 'public'}`;
     const items = state.attachments || [];
-    document.getElementById('ctx-attachments').textContent =
-      items.length ? items.map((item) => item.name).join(', ') : 'none';
+    this.renderFiles(items);
+    if (window.updateAttachSummary) updateAttachSummary(items);
+    this.renderSkills(state.skills || { skills: [], active: [] });
     document.getElementById('ctx-memories').textContent = String(state.memory.active || 0);
     document.getElementById('ctx-trails').textContent = String(state.study.trails || 0);
 
@@ -435,6 +496,142 @@ const Shelf = {
 
     this.renderStudy(state.study);
     this.renderRoute(state.route);
+  },
+
+  renderFiles(items) {
+    const grid = document.getElementById('file-grid');
+    if (!grid) return;
+
+    const total = items.length;
+    const selected = items.filter((item) => item.selected !== false).length;
+    const count = document.getElementById('files-count');
+    if (count) {
+      count.hidden = !total;
+      count.textContent = total ? `${selected}/${total}` : '';
+    }
+    const empty = document.getElementById('files-empty');
+    if (empty) empty.hidden = total > 0;
+    const actions = document.getElementById('files-actions');
+    if (actions) actions.hidden = total < 2;
+    const context = document.getElementById('ctx-attachments');
+    if (context) context.textContent = total ? `${selected} of ${total} selected` : 'none';
+
+    grid.innerHTML = '';
+    items.forEach((item) => {
+      const box = document.createElement('div');
+      box.className = `file-box${item.selected === false ? '' : ' is-selected'}`;
+
+      const main = document.createElement('button');
+      main.type = 'button';
+      main.className = 'file-main';
+      main.setAttribute('aria-pressed', String(item.selected !== false));
+      main.title = item.summary || item.name;
+      main.innerHTML = `
+        <span class="file-icon" aria-hidden="true">${escapeHtml(fileGlyph(item.type))}</span>
+        <span class="file-name">${escapeHtml(item.name)}</span>
+        <span class="file-meta">${escapeHtml(item.detail || (item.type || '').toUpperCase())}</span>
+        <span class="file-check" aria-hidden="true">✓</span>`;
+      main.addEventListener('click', () => this.setSelected(item.index, item.selected === false));
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'file-remove';
+      remove.title = `Remove ${item.name}`;
+      remove.setAttribute('aria-label', `Remove ${item.name}`);
+      remove.textContent = '✕';
+      remove.addEventListener('click', async () => {
+        const payload = await api('/api/attachments/remove', {
+          method: 'POST',
+          body: JSON.stringify({ index: item.index }),
+        });
+        handlePayload(payload, '');
+      });
+
+      box.append(main, remove);
+      grid.appendChild(box);
+    });
+  },
+
+  renderSkills(payload) {
+    const grid = document.getElementById('skill-grid');
+    if (!grid) return;
+
+    const list = (payload && payload.skills) || [];
+    const active = (payload && payload.active) || [];
+    const summary = document.getElementById('skills-summary-text');
+    if (summary) {
+      summary.textContent = active.length
+        ? `${active.length} active · ${active.join(', ')}`
+        : 'No skill active';
+      summary.title = active.join(', ');
+    }
+    const count = document.getElementById('skills-count');
+    if (count) {
+      count.hidden = !list.length;
+      count.textContent = list.length ? `${active.length}/${list.length}` : '';
+    }
+    const empty = document.getElementById('skills-empty');
+    if (empty) empty.hidden = list.length > 0;
+
+    grid.innerHTML = '';
+    list.forEach((skill) => {
+      const card = document.createElement('div');
+      card.className = `skill-card${skill.active ? ' is-selected' : ''}`;
+      if (skill.color) card.style.setProperty('--skill-color', skill.color);
+
+      const main = document.createElement('button');
+      main.type = 'button';
+      main.className = 'skill-main';
+      main.setAttribute('aria-pressed', String(Boolean(skill.active)));
+      main.title = skill.description || skill.name;
+      main.innerHTML = `
+        <span class="skill-tile" aria-hidden="true">${escapeHtml(skill.icon || (skill.name || '?').slice(0, 1))}</span>
+        <span class="skill-name">${escapeHtml(skill.name)}</span>
+        <span class="skill-desc">${escapeHtml(skill.short || '')}</span>
+        <span class="skill-check" aria-hidden="true">✓</span>`;
+      main.addEventListener('click', () => this.toggleSkill(skill.id, !skill.active));
+      card.appendChild(main);
+
+      if (skill.can_run) {
+        const run = document.createElement('button');
+        run.type = 'button';
+        run.className = 'skill-run';
+        run.title = `Run ${skill.name}`;
+        run.setAttribute('aria-label', `Run ${skill.name}`);
+        run.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>';
+        run.addEventListener('click', () => this.runSkill(skill));
+        card.appendChild(run);
+      }
+
+      grid.appendChild(card);
+    });
+  },
+
+  async toggleSkill(id, active) {
+    const data = await api('/api/skills/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ id, active }),
+    });
+    if (!data.ok) {
+      toast(data.error || 'Could not update the skill.', 'error');
+      return;
+    }
+    if (this.state) this.state.skills = data;
+    this.renderSkills(data);
+  },
+
+  async runSkill(skill) {
+    const data = await api('/api/skills/invoke', {
+      method: 'POST',
+      body: JSON.stringify({ id: skill.id }),
+    });
+    if (!data.ok) {
+      toast(data.error || 'This skill has nothing to run.', 'error');
+      return;
+    }
+    input.value = data.prompt;
+    input.dispatchEvent(new Event('input'));
+    send();
   },
 
   renderStudy(study) {
@@ -468,6 +665,10 @@ const Shelf = {
       ${(route.fallbacks || []).length ? `<p class="shelf-empty">${route.fallbacks.map(escapeHtml).join(' ')}</p>` : ''}`;
   },
 };
+
+// Classic scripts share one global scope, but `const` does not create a
+// window property — chat.js talks to the shelf through this explicit handle.
+window.Shelf = Shelf;
 
 function workspaceInit() {
   Shelf.init();

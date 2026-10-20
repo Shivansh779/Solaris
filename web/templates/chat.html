@@ -23,13 +23,23 @@
       </div>
     </div>
 
-    <div class="attach-bar" id="attach-bar" hidden></div>
-
     <div class="messages" id="messages">
       <div class="msg msg-system">
         <div class="bubble">Session started for <strong>{{ status.profile.name if status.profile else 'you' }}</strong>.
           Type <code>.HELP</code> for commands, use the paperclip to attach files, or the mic to dictate.</div>
       </div>
+    </div>
+
+    <div class="attach-summary" id="attach-summary" hidden>
+      <button type="button" class="attach-summary-btn" id="attach-summary-btn"
+              title="Select which attached files reach the model">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21.44 11.05l-8.49 8.49a5.5 5.5 0 01-7.78-7.78l8.49-8.49a3.5 3.5 0 014.95 4.95l-8.49 8.49a1.5 1.5 0 01-2.12-2.12l7.78-7.78"/>
+        </svg>
+        <span id="attach-summary-text"></span>
+        <span class="attach-summary-hint">Manage</span>
+      </button>
     </div>
 
     <div class="composer">
@@ -79,6 +89,32 @@
           <button class="btn btn-small" type="button" id="task-cancel">Cancel</button>
         </div>
       </form>
+    </section>
+
+    <section class="shelf-section" id="files-section">
+      <h3>Files <span class="shelf-count" id="files-count" hidden></span></h3>
+      <div class="file-grid" id="file-grid"></div>
+      <p class="shelf-empty" id="files-empty">No files attached yet — use the paperclip in the composer.</p>
+      <div class="shelf-actions" id="files-actions" hidden>
+        <button type="button" class="shelf-link" id="files-select-all">Select all</button>
+        <button type="button" class="shelf-link" id="files-select-none">Select none</button>
+      </div>
+    </section>
+
+    <section class="shelf-section" id="skills-section">
+      <h3>Skills <span class="shelf-count" id="skills-count" hidden></span></h3>
+      <details class="skill-drawer" id="skill-drawer">
+        <summary class="skill-summary">
+          <span class="skill-summary-text" id="skills-summary-text">No skill active</span>
+          <svg class="chev" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </summary>
+        <div class="skill-grid" id="skill-grid"></div>
+        <p class="shelf-empty" id="skills-empty">No skills found. Add Markdown files to
+          <code>Skills/</code> or <code>~/.solaris/skills/</code>.</p>
+      </details>
     </section>
 
     <section class="shelf-section">

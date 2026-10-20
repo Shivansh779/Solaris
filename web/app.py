@@ -670,6 +670,19 @@ def api_remove_attachment():
     return jsonify(core.remove_attachment(index))
 
 
+@app.post("/api/attachments/select")
+def api_select_attachment():
+    ok, body, status = access.require_selected()
+    if not ok:
+        return jsonify(body), status
+    data = request.get_json(force=True) or {}
+    try:
+        index = int(data.get("index"))
+    except (TypeError, ValueError):
+        return jsonify({"type": "error", "message": "Invalid attachment number."}), 400
+    return jsonify(core.set_attachment_selected(index, bool(data.get("selected"))))
+
+
 # ---------------------------------------------------------------- specialists
 
 

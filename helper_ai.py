@@ -32,7 +32,11 @@ except Exception as e:
 ollama_model = models['local']
 
 # Prompt Builder
-def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context=""):
+def build_prompt(name, preference, imp_conv_history, conversation_text, memory_text, question, about_user, attachment_context="", skill_context=""):
+    skill_block = f"""
+    Active Skills (follow these instructions):
+    {skill_context}
+""" if skill_context else ""
     attachment_block = f"""
     Attached Files Context:
     {attachment_context}
@@ -65,6 +69,7 @@ def build_prompt(name, preference, imp_conv_history, conversation_text, memory_t
     
     About the User:
     {about_user}
+    {skill_block}
     {attachment_block}
     User's question: {question}
 """
@@ -92,7 +97,11 @@ def build_web_prompt(question, sources):
 """
 
 # Coder Prompt Builder
-def build_coding_prompt(prompt, attachment_context=""):
+def build_coding_prompt(prompt, attachment_context="", skill_context=""):
+    skill_block = f"""
+    Active Skills (follow these instructions):
+    {skill_context}
+""" if skill_context else ""
     attachment_block = f"""
     Attached Files Context:
     {attachment_context}
@@ -116,12 +125,17 @@ Adapt the format to the task. Generally:
 - **Why / Explanation**
 
 For simple requests, keep the response concise and provide the code directly.
+{skill_block}
 {attachment_block}
 User's request: {prompt}
 """
 
 # Writing Prompt Builder
-def build_writing_prompt(prompt, attachment_context=""):
+def build_writing_prompt(prompt, attachment_context="", skill_context=""):
+    skill_block = f"""
+    Active Skills (follow these instructions):
+    {skill_context}
+""" if skill_context else ""
     attachment_block = f"""
     Attached Files Context:
     {attachment_context}
@@ -144,12 +158,13 @@ Adapt the format to the task. Generally:
 - **Notes / Explanation** when useful
 
 For simple requests, provide the finished writing directly.
+{skill_block}
 {attachment_block}
 User's request: {prompt}
 """
 
 # Strategist Prompt Builder
-def build_strategist_prompt(prompt, answers, ai_questions, previous_draft=None, attachment_context=""):
+def build_strategist_prompt(prompt, answers, ai_questions, previous_draft=None, attachment_context="", skill_context=""):
     comparison = ""
     if previous_draft:
         comparison = f"""
@@ -163,6 +178,10 @@ Previous Draft:
     Attached Files Context:
     {attachment_context}
 """ if attachment_context else ""
+    skill_block = f"""
+    Active Skills (follow these instructions):
+    {skill_context}
+""" if skill_context else ""
     return f"""
     You are Solaris' Strategist. Turn the user's defined goal and collected answers into a clear, detailed, and practical PRD or Design Draft.
 
@@ -213,12 +232,16 @@ User's Question: {prompt}
 Questions asked to user for details: {ai_questions}
 
 Answer's Provided by the user to questions provided: {answers}
+{skill_block}
 {attachment_block}
 {comparison}
 """
 
 # Questionaire Prompt
-def questions(prompt, attachment_context=""):
+def questions(prompt, attachment_context="", skill_context=""):
+    skill_block = (
+        "Active Skills (follow these instructions):\n" + skill_context + "\n"
+    ) if skill_context else ""
     attachment_block = (
         "Attached Files Context:\n" + attachment_context + "\n"
     ) if attachment_context else ""
@@ -256,6 +279,7 @@ def questions(prompt, attachment_context=""):
         "2. ...\n"
         "3. ...\n\n"
         "Keep the questions concise and easy to answer.\n"
+        + skill_block
         + attachment_block
         + "User's Request: "
         + prompt

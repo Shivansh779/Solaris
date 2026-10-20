@@ -26,7 +26,7 @@ def _try_fallback(prompt_builder, primary_client, primary_provider, primary_mode
             system_log("AI", "ERROR", f"Secondary model also failed for {task_name}. Error: {str(e)}")
             return f"Both primary and secondary models failed to generate a response for {task_name}."
 
-def coder(prompt, p_client, s_client, attachment_context=""):
+def coder(prompt, p_client, s_client, attachment_context="", skill_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
     
@@ -36,13 +36,13 @@ def coder(prompt, p_client, s_client, attachment_context=""):
     secondary_provider = config["specialist"]["coding"]["secondary"]["provider"]
     
     return _try_fallback(
-        lambda: helper_ai.build_coding_prompt(prompt, attachment_context),
+        lambda: helper_ai.build_coding_prompt(prompt, attachment_context, skill_context),
         p_client, primary_provider, primary_model,
         s_client, secondary_provider, secondary_model,
         "coding"
     )
 
-def writer(prompt, p_client, s_client, attachment_context=""):
+def writer(prompt, p_client, s_client, attachment_context="", skill_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
     
@@ -52,13 +52,13 @@ def writer(prompt, p_client, s_client, attachment_context=""):
     secondary_provider = config["specialist"]["writing"]["secondary"]["provider"]
     
     return _try_fallback(
-        lambda: helper_ai.build_writing_prompt(prompt, attachment_context),
+        lambda: helper_ai.build_writing_prompt(prompt, attachment_context, skill_context),
         p_client, primary_provider, primary_model,
         s_client, secondary_provider, secondary_model,
         "writing"
     )
 
-def questionaire(prompt, p_client, s_client, attachment_context=""):
+def questionaire(prompt, p_client, s_client, attachment_context="", skill_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
     
@@ -68,13 +68,13 @@ def questionaire(prompt, p_client, s_client, attachment_context=""):
     secondary_provider = config["specialist"]["reasoning"]["secondary"]["provider"]
     
     return _try_fallback(
-        lambda: helper_ai.questions(prompt, attachment_context),
+        lambda: helper_ai.questions(prompt, attachment_context, skill_context),
         p_client, primary_provider, primary_model,
         s_client, secondary_provider, secondary_model,
         "questions"
     )
 
-def strategist(prompt, p_client, s_client, ai_questions, answers, previous_draft=None, force_secondary=False, attachment_context=""):
+def strategist(prompt, p_client, s_client, ai_questions, answers, previous_draft=None, force_secondary=False, attachment_context="", skill_context=""):
     with open("config.json", "r") as f:
         config = json.load(f)
     
@@ -84,7 +84,7 @@ def strategist(prompt, p_client, s_client, ai_questions, answers, previous_draft
     secondary_provider = config["specialist"]["reasoning"]["secondary"]["provider"]
     
     def build_prompt():
-        return helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft, attachment_context)
+        return helper_ai.build_strategist_prompt(prompt, answers, ai_questions, previous_draft, attachment_context, skill_context)
     
     if force_secondary:
         system_log("AI", "INFO", f"Secondary model being used for strategist comparison: {secondary_model}. Provider: {secondary_provider}")

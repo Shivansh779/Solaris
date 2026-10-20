@@ -42,6 +42,24 @@ def remove_attachment(index: int) -> Optional[Dict[str, Any]]:
     return removed
 
 
+def set_selected(index: int, selected: bool) -> Optional[Dict[str, Any]]:
+    """Include or exclude one attachment from what the model is given.
+
+    Files are extracted at attach time so the shelf can show real stats;
+    this flag only controls whether the content is assembled into a prompt.
+    Returns the updated attachment, or None if the index is out of range."""
+    if index < 0 or index >= len(_attachment_context):
+        return None
+    path = list(_attachment_context.keys())[index]
+    item = _attachment_context[path]
+    item["selected"] = bool(selected)
+    return item
+
+
+def selected_attachments() -> List[Dict[str, Any]]:
+    return [item for item in _attachment_context.values() if item.get("selected", True)]
+
+
 def get_file_type(file_path: str) -> Optional[str]:
     """Determine the supported file type from extension."""
     ext = Path(file_path).suffix.lower()
@@ -242,15 +260,16 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
         'content': content,
         'metadata': metadata,
         'attached_at': datetime.now().isoformat(),
+        'selected': True,
     }
     _attachment_context[abs_path] = attachment_data
 
     recommendation = None
     if file_type == 'markdown':
         recommendation = (
-            "File attached is a markdown file. I recommend using .BETTER for better results "
-            "if the markdown file is a SKILLS/USER file that provides context, "
-            "in-depth details or preferences for a task."
+            "Markdown files can also be saved in Skills/ (project) or ~/.solaris/skills/ (personal) "
+            "to appear as a skill in the workspace, or used with .BETTER when the file is a "
+            "SKILLS/USER context document."
         )
     elif file_type in ('jpeg', 'png'):
         recommendation = (
@@ -267,6 +286,18 @@ def ingest_file(file_path: str) -> Dict[str, Any]:
         'metadata': metadata,
         'recommendation': recommendation,
     }
+
+
+def _human_size(value) -> str:
+    try:
+        size = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return "—"
 
 
 def format_attachment_summary(attachment: Dict[str, Any]) -> str:
@@ -286,8 +317,21 @@ def format_attachment_summary(attachment: Dict[str, Any]) -> str:
     elif attachment['file_type'] in ('jpeg', 'png'):
         lines.append(f"Dimensions: {meta.get('width', 'N/A')}x{meta.get('height', 'N/A')}, Mode: {meta.get('mode', 'N/A')}")
 
-    lines.append(f"Size: {meta.get('size_bytes', 'N/A'):,} bytes")
+    lines.append(f"Size: {_human_size(meta.get('size_bytes'))}")
     return "\n".join(lines)
+
+
+def format_attachment_detail(attachment: Dict[str, Any]) -> str:
+    """One compact line for a shelf box: what the file is and how big it is."""
+    meta = attachment['metadata']
+    size = _human_size(meta.get('size_bytes'))
+    if attachment['file_type'] == 'markdown':
+        return f"{meta.get('line_count', '—')} lines · {size}"
+    if attachment['file_type'] == 'pdf':
+        return f"{meta.get('page_count', '—')} pages · {size}"
+    if attachment['file_type'] in ('jpeg', 'png'):
+        return f"{meta.get('width', '—')}×{meta.get('height', '—')} · {size}"
+    return size
 
 
 def get_all_attachments() -> Dict[str, Dict[str, Any]]:
@@ -321,20 +365,21 @@ def _format_attachments_context(attachments) -> str:
 
 def get_combined_attachment_context() -> str:
     """
-    Get all attachment content combined into a single context string
-    for use by other Solaris components (like .BETTER).
+    Get the content of the *selected* attachments combined into a single
+    context string. Unselected files stay available in the shelf (and keep
+    their extracted stats) but never reach a model.
     """
-    return _format_attachments_context(_attachment_context.values())
+    return _format_attachments_context(selected_attachments())
 
 
 def get_attachments_for_vision() -> List[Dict[str, Any]]:
     """
-    Get attachments that are images, formatted for vision-capable models.
+    Get selected image attachments, formatted for vision-capable models.
     Returns a list of dicts with 'path', 'mime_type', and 'metadata' for API calls.
     """
     vision_attachments = []
     for attachment in _attachment_context.values():
-        if attachment['file_type'] in ('jpeg', 'png'):
+        if attachment.get("selected", True) and attachment['file_type'] in ('jpeg', 'png'):
             vision_attachments.append({
                 'path': attachment['file_path'],
                 'mime_type': attachment['metadata'].get('mime_type', 'image/jpeg'),

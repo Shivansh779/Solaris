@@ -5,7 +5,9 @@ const input = document.getElementById('input');
 const composerStatus = document.getElementById('composer-status');
 const sendButton = document.getElementById('send-btn');
 const micButton = document.getElementById('mic-btn');
-const attachBar = document.getElementById('attach-bar');
+const attachSummary = document.getElementById('attach-summary');
+const attachSummaryText = document.getElementById('attach-summary-text');
+const attachSummaryButton = document.getElementById('attach-summary-btn');
 const ttsSelect = document.getElementById('tts-engine');
 
 // Control labels come from Python (core.ANSWER_CONTROLS); prompts never live in JS.
@@ -280,27 +282,27 @@ attachInput.addEventListener('change', async () => {
   handlePayload(payload, '');
 });
 
-function refreshAttachments(items) {
-  attachBar.innerHTML = '';
-  attachBar.hidden = !items.length;
-  items.forEach((item) => {
-    const chip = document.createElement('span');
-    chip.className = 'attach-chip';
-    chip.title = item.summary;
-    chip.innerHTML = `${escapeHtml(item.type.toUpperCase())} · ${escapeHtml(item.name)}
-      <button data-index="${item.index}" title="Remove">✕</button>`;
-    attachBar.appendChild(chip);
-  });
-  attachBar.querySelectorAll('button').forEach((button) => {
-    button.addEventListener('click', async () => {
-      const payload = await api('/api/attachments/remove', {
-        method: 'POST',
-        body: JSON.stringify({ index: button.dataset.index }),
-      });
-      handlePayload(payload, '');
-    });
-  });
+function updateAttachSummary(items) {
+  const total = items.length;
+  const selected = items.filter((item) => item.selected !== false).length;
+  attachSummary.hidden = !total;
+  if (!total) return;
+  attachSummaryText.textContent = total === 1
+    ? `${items[0].name} · ${selected ? 'included' : 'excluded'}`
+    : `${total} files · ${selected} selected`;
+  attachSummaryButton.setAttribute('aria-label',
+    `${total} files attached, ${selected} included. Open the workspace to change them.`);
 }
+
+function refreshAttachments(items) {
+  updateAttachSummary(items);
+  if (window.Shelf) {
+    if (Shelf.state) Shelf.state.attachments = items;
+    Shelf.renderFiles(items);
+  }
+}
+
+attachSummaryButton.addEventListener('click', () => Shelf.reveal('files-section'));
 
 async function loadAttachments() {
   const data = await api('/api/attachments');
@@ -312,9 +314,13 @@ function openAttachments(items) {
     addMessage('system', 'No files attached currently.');
     return;
   }
-  openModal('Attached files', `<div class="form-grid">${items.map((item) =>
-    `<div class="row"><code>${escapeHtml(item.name)}</code><span class="muted small">${escapeHtml(item.type)}</span>
-     <button class="btn btn-small" data-remove="${item.index}">Remove</button></div>`).join('')}</div>`);
+  openModal('Attached files', `
+    <p class="muted small">Only included files are processed and sent to the model. Toggle them here
+    or as boxes in the workspace shelf.</p>
+    <div class="form-grid">${items.map((item) =>
+      `<div class="row"><code>${escapeHtml(item.name)}</code><span class="muted small">${escapeHtml(item.type)}</span>
+       <button class="btn btn-small" data-include="${item.index}">${item.selected === false ? 'Include' : 'Exclude'}</button>
+       <button class="btn btn-small" data-remove="${item.index}">Remove</button></div>`).join('')}</div>`);
   document.querySelectorAll('[data-remove]').forEach((button) => {
     button.addEventListener('click', async () => {
       const payload = await api('/api/attachments/remove', {
@@ -323,6 +329,17 @@ function openAttachments(items) {
       });
       handlePayload(payload, '');
       closeModal();
+    });
+  });
+  document.querySelectorAll('[data-include]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const item = items.find((entry) => String(entry.index) === button.dataset.include) || {};
+      const payload = await api('/api/attachments/select', {
+        method: 'POST',
+        body: JSON.stringify({ index: button.dataset.include, selected: item.selected === false }),
+      });
+      refreshAttachments(payload.attachments || []);
+      openAttachments(payload.attachments || []);
     });
   });
 }
