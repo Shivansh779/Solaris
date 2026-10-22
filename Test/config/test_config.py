@@ -30,7 +30,7 @@ def test_provider_entry_has_required_fields(provider):
     assert isinstance(entry["api_key_env"], str) and entry["api_key_env"]
     assert entry["api_key_env"].endswith("API_KEY")
     assert "base_url" in entry
-    assert entry["client_class"] in (genai.Client, OpenAI)
+    assert config.client_class(provider) in (genai.Client, OpenAI)
 
 
 @pytest.mark.parametrize(

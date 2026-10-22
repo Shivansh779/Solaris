@@ -22,6 +22,7 @@ from _log import system_log, current_time
 import attachment
 import config
 import config_io
+import embeddings
 import env_io
 import helper_ai
 import history_db
@@ -32,6 +33,7 @@ import skills
 import specialist_ai
 import study_ai
 import study_db
+import vec_db
 import vision_ai
 import web_search
 import workspace_db
@@ -44,8 +46,10 @@ _md = MarkdownIt("gfm-like", {"linkify": False}).disable("html_block").disable("
 main_db.create_table()
 history_db.create_table()
 memory_db.create_table()
+vec_db.create_table()
 study_db.create_table()
 workspace_db.create_table()
+embeddings.warm()
 system_log("SYSTEM", "INFO", "Application database tables initialized.")
 
 
@@ -1134,7 +1138,9 @@ def send(message, input_mode="text", exclude_ids=None, record=True, previous_ans
         conversation_text = "\n".join(
             f"{msg['role'].title()}: {msg['content']}" for msg in history
         )
-        session.memories = history_db.access_history(session.user_id)
+        # The past-sessions block is ranked by relevance to this question; the
+        # newest summaries are used when the vector index is cold or unavailable.
+        session.memories = history_db.access_history_similar(session.user_id, text)
         summary_text = "" if "history" in excluded else "\n\n".join(
             f"[{timestamp}]\n{summary}" for summary, timestamp in session.memories
         )

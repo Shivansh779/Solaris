@@ -1,6 +1,5 @@
 import sqlite3
 from dotenv import load_dotenv
-import ollama
 from datetime import datetime
 import platform
 from textwrap import dedent
@@ -335,6 +334,7 @@ def _call_with_fallback(prompt, operation_name):
         except Exception as e:
             system_log("AI", "WARNING", f"{operation_name} failed on OpenRouter; falling back to Ollama: {e}")
     try:
+        import ollama
         response = ollama.chat(
             model=ollama_model,
             messages=[{"role": "user", "content": prompt}]

@@ -74,6 +74,8 @@ The Important files of this project and their use cases are as follows:
 |main_db.py	|Profiles, credential hashing, access state, migrations
 |history_db.py	|Long-term conversation history and `web_log`
 |memory_db.py	|Constellation Memory nodes
+|vec_db.py	|Semantic index — sqlite-vec `vec0` table, chunking, search, rebuild
+|embeddings.py	|Local Ollama embedding model — batching, timeouts, warm-up
 |study_db.py	|Study trails, concepts and saved notes
 |workspace_db.py	|Session task and checkpoint
 |tui_utils.py	|Terminal UI helpers (markdown rendering, tables, prompts)
@@ -304,6 +306,7 @@ the new answer to the conversation history.
 * Microphone (for voice input)
 * Audio output device (for speech)
 * Ollama (optional, for offline fallback)
+* Ollama with `all-minilm:33m` pulled (optional, for semantic memory — `ollama pull all-minilm:33m`)
 * Gemini API Key (optional)
 * OpenRouter API Key (optional)
 * NVIDIA NIM / Groq API access (optional, for vision and chat providers)
@@ -482,6 +485,19 @@ Raw retrieved web content is intentionally <b>not</b> persisted to keep the data
 
 * Study trails, their concepts (mastery: new / practicing / confident / revisit) and saved notes
 * A successful `.QUIZ` on the same topic advances the matching trail
+
+### <u>vec_chunks / vec_meta</u>
+
+**Managed by vec_db.py** (sqlite-vec extension)
+
+* A `vec0` virtual table holding one row per embedded chunk: the vector, the owning profile
+  (`user_id` is a **partition key**, so a profile's chunks are physically grouped and a query
+  never scans another profile), the source (`kind` + `ref_id`), and the chunk text.
+* Chunks come from two places: one per **active** memory node, and one per **bullet** of a
+  session summary — so a single fact buried in a long summary is individually findable.
+* `vec_meta` records the embedding model, its dimension and the chunk count. A model change is
+  therefore detected and turned into a rebuild, never a silent mix of two vector spaces.
+* The index is **derived**: it can be dropped and rebuilt from the plain text at any time.
 
 ### <u>workspace_task / workspace_checkpoint</u>
 

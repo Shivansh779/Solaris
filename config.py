@@ -12,6 +12,21 @@ PROVIDERS = {
     "ollama-cloud": {"api_key_env": "OLLAMA_CLOUD_API_KEY", "base_url": "https://ollama.com/v1", "client_kind": "openai"},
 }
 
+def client_class(provider: str):
+    """The SDK class a provider's client is built from.
+
+    The import is lazy on purpose: config.py is imported at startup, and the
+    provider SDKs are heavy to load.
+    """
+    cfg = PROVIDERS.get(provider)
+    if cfg is None:
+        raise ValueError(f"Unknown provider: {provider}")
+    if cfg["client_kind"] == "gemini":
+        from google import genai
+        return genai.Client
+    from openai import OpenAI
+    return OpenAI
+
 def init_client(provider: str):
     """Initialize an API client for the given provider."""
     cfg = PROVIDERS.get(provider)

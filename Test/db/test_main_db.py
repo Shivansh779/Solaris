@@ -122,3 +122,27 @@ def test_fetch_user_id_found(table):
 def test_fetch_user_id_missing(table):
     main_db.new_user("Nia", "p", "q")
     assert main_db.fetch_user_id("Nobody") is None
+
+def test_canonical_access_state_survives_a_second_migration(table):
+    """visibility and state are canonical once written.
+
+    The one-shot backfill from the legacy is_private/is_active mirrors must
+    never run again — otherwise a deliberate change would be undone on the
+    next start.
+    """
+    uid = main_db.new_user("Kay", "p", "q")
+    main_db.set_visibility(uid, main_db.VISIBILITY_PRIVATE)
+    main_db.set_state(uid, "inactive")
+
+    # The legacy mirrors are deliberately left out of step with the canonical
+    # values, exactly as they would be if the user changed them by hand.
+    conn = main_db.get_conn()
+    conn.execute("UPDATE user_data SET is_private = 0, is_active = 1 WHERE user_id = ?;", (uid,))
+    conn.commit()
+    conn.close()
+
+    main_db.create_table()
+
+    access = main_db.get_access(uid)
+    assert access["visibility"] == main_db.VISIBILITY_PRIVATE
+    assert access["state"] == "inactive"

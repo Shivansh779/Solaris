@@ -34,6 +34,8 @@ python chatbot.py --terminal # legacy terminal (TUI) interface
 - **Databases**: `main_db.py` (profiles + credential hashes + migrations), `history_db.py`
   (conversations, web_log), `memory_db.py` (Constellation Memory), `study_db.py` (Study Trails),
   `workspace_db.py` (session task + checkpoint)
+- **Semantic index**: `vec_db.py` (sqlite-vec `vec0` table, chunking, search, rebuild) and
+  `embeddings.py` (local Ollama embedding model). Derived and rebuildable — never the source of truth.
 - **Models**: chat fallback Gemini → OpenRouter → Ollama (local); summarisation OpenRouter → Ollama
 - **Attachments**: in-memory only (`attachment.py`); web uploads land in `_uploads/` first
 - **Voice/TTS**: `/api/voice` (faster-whisper, lazy), `/api/tts` (EdgeTTS mp3 / KittenTTS wav)
@@ -82,6 +84,12 @@ Profile access model, enforced server-side in `web/access.py` + `web/app.py`:
 - **Constellation Memory** — `memory_db.py`; statuses active / suggested / archived, grouped by
   category. Extracted statements land as *suggestions* only; `build_context` sends at most
   `CONTEXT_LIMIT` relevant nodes and reports which ones were used.
+- **Semantic memory** — `vec_db.py` + `embeddings.py`; a sqlite-vec `vec0` table inside
+  `database.db`, indexed by a local Ollama model (`all-minilm:33m`, 384-dim). Only `active`
+  memory nodes and session-summary bullets are embedded. Ranking is hybrid: keyword overlap +
+  category boost + cosine similarity. When the extension or the model is missing the app falls
+  back to plain keyword ranking. `vec_meta` records model/dimension/count, so a model change is
+  a rebuild, never a silent mix of vector spaces.
 - **Study Trails** — `study_db.py`; trails + concepts (new/practicing/confident/revisit) + saved notes.
   A successful `.QUIZ` counts against a trail with the same topic. No points, streaks or badges.
 - **Solaris Lens** — `web/static/app.css`; aurora tokens (`--lens-*`) used only for routing, privacy,
@@ -121,6 +129,8 @@ Profile access model, enforced server-side in `web/access.py` + `web/app.py`:
 | `web/jobs.py` | In-memory background job runner |
 | `main_db.py` | Profiles, credential hashing, access state, migrations |
 | `memory_db.py` | Constellation Memory nodes (active/suggested/archived) |
+| `vec_db.py` | Semantic index (sqlite-vec `vec0` table, chunking, search, rebuild) |
+| `embeddings.py` | Local Ollama embedding model: batching, timeouts, warm-up |
 | `study_db.py` | Study trails, concepts, saved notes |
 | `skills.py` | Markdown skills: discovery, activation, prompt context |
 | `workspace_db.py` | Session task + checkpoint |

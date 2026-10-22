@@ -14,7 +14,6 @@ import asyncio
 import edge_tts
 from kittentts import KittenTTS
 from playsound3 import playsound
-import ollama
 import time
 from textwrap import dedent
 import json
@@ -377,6 +376,7 @@ def ask_openrouter(prompt, spinner, models, route=None):
 def ask_ollama(prompt, model, route=None):
     system_log("AI", "INFO", f"Using Ollama model: {model}")
     try:
+        import ollama
         response = ollama.chat(
             model=model,
             messages=[

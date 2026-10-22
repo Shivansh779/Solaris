@@ -22,6 +22,7 @@ import core
 import env_io
 import main_db
 import model_state
+import vec_db
 import web.access as access
 import web.jobs as jobs
 
@@ -41,7 +42,7 @@ WEB_KEYS = {
     "firecrawl": {"env": "FIRECRAWL_API_KEY", "label": "Firecrawl", "url": "https://www.firecrawl.dev/app/api-keys"},
 }
 
-CONFIG_TOP_KEYS = {"gemini", "openrouter", "local", "or_assist", "web", "vision_model", "specialist"}
+CONFIG_TOP_KEYS = {"gemini", "openrouter", "local", "or_assist", "web", "vision_model", "specialist", "embeddings"}
 
 # Session uploads (attachments) land here and stay until the OS clears the temp dir.
 UPLOAD_DIR = [tempfile.mkdtemp(prefix="solaris_uploads_")]
@@ -125,6 +126,7 @@ def status_payload():
             "depths": cfg.get("web", {}).get("depths", {}),
         },
         "disabled_models": sorted(model_state.unavailable_models),
+        "vector_search": vec_db.stats(),
         "tts_engine": core.session.tts_engine,
         "version": "1.3.0-web",
     }
@@ -747,6 +749,7 @@ def api_settings():
         "keys": keys,
         "password_set": main_db.api_password_set(),
         "providers": list(config.PROVIDERS.keys()),
+        "vector": vec_db.stats(),
     })
 
 

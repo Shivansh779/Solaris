@@ -231,6 +231,45 @@ async function loadSettings() {
   fillModels();
   fillKeys();
   fillPassword();
+  fillVector();
 }
 
 loadSettings();
+
+// ---------------------------------------------------------------- vector index
+
+function fillVector() {
+  const vector = settingsData.vector || {};
+  const grid = document.getElementById('vector-grid');
+  if (!grid) return;
+  const state = vector.state || 'empty';
+  const stateLabel = { empty: 'not built', ready: 'ready', stale: 'stale' }[state] || state;
+  grid.innerHTML = `
+    <div class="chip ${vector.available && vector.ollama ? 'chip-ok' : 'chip-muted'}">
+      ${vector.available ? 'extension loaded' : 'extension unavailable'}
+    </div>
+    <div class="chip ${vector.ollama ? 'chip-ok' : 'chip-muted'}">
+      ${vector.ollama ? 'model resident' : 'model not resident'}
+    </div>
+    <div class="chip chip-muted">${vector.chunks || 0} chunks</div>
+    <div class="chip chip-muted">${escapeHtml(vector.model || '—')}</div>
+    <div class="chip chip-muted">${vector.dimension || '—'} dims</div>
+    <div class="chip chip-muted">${stateLabel}</div>
+`;
+
+document.getElementById('vector-rebuild').addEventListener('click', async () => {
+  const status = document.getElementById('vector-status');
+  const btn = document.getElementById('vector-rebuild');
+  btn.disabled = true;
+  status.textContent = 'Rebuilding…';
+  const data = await api('/api/vector/rebuild', { method: 'POST' });
+  btn.disabled = false;
+  status.textContent = '';
+  if (data.ok) {
+    settingsData.vector = data.vector;
+    fillVector();
+    toast('Index rebuilt.', 'ok');
+  } else {
+    toast(data.error || 'Rebuild failed.', 'error');
+  }
+});

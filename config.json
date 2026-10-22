@@ -74,5 +74,8 @@
                 "provider": "ollama-cloud"
             }
         }
+    },
+    "embeddings": {
+        "model": "all-minilm:33m"
     }
 }

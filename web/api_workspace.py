@@ -12,8 +12,10 @@ import main_db
 import memory_db
 import skills
 import study_db
-import workspace_db
+import vec_db
 import web.access as access
+import web.jobs as jobs
+import workspace_db
 
 bp = Blueprint("workspace", __name__)
 
@@ -493,3 +495,30 @@ def skills_save():
     except ValueError as e:
         return _bad(str(e))
     return jsonify({"ok": True, "skill": skill})
+
+
+# ------------------------------------------------------------------ vector
+
+@bp.get("/api/vector/status")
+def vector_status():
+    """The state of the semantic index."""
+    _user_id, error = _guard()
+    if error:
+        return error
+    return jsonify({"ok": True, "vector": vec_db.stats()})
+
+
+@bp.post("/api/vector/rebuild")
+def vector_rebuild():
+    """Rebuild the semantic index from the stored memories and summaries.
+
+    The index is derived data, so this is always safe to run. It runs in the
+    background because every chunk has to be embedded by the local model.
+    """
+    _user_id, error = _guard()
+    if error:
+        return error
+    if not vec_db.available():
+        return _bad("The sqlite-vec extension is not available on this machine.", 503)
+    job_id = jobs.start(vec_db.rebuild)
+    return jsonify({"ok": True, "job": job_id, "vector": vec_db.stats()})

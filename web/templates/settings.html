@@ -11,6 +11,7 @@
   <button class="tab active" data-tab="models">Models</button>
   <button class="tab" data-tab="keys">API Keys</button>
   <button class="tab" data-tab="password">Password</button>
+  <button class="tab" data-tab="vector">Vector index</button>
 </div>
 
 <section class="tab-panel" id="tab-models">
@@ -100,6 +101,18 @@
       <button class="btn btn-primary" id="rotate-password">Generate a new 6-character password</button>
     </div>
     <div id="password-result" class="password-result" hidden></div>
+  </div>
+</section>
+
+<section class="tab-panel" id="tab-vector" hidden>
+  <div class="card">
+    <h2>Vector index (semantic memory)</h2>
+    <p class="muted small">Local Ollama embeddings stored in <code>database.db</code>. Only active memory nodes and session-summary bullets are indexed; a rebuild is always safe.</p>
+    <div class="grid grid-3" id="vector-grid"></div>
+    <div class="actions" style="margin-top:1rem">
+      <button class="btn btn-primary" id="vector-rebuild">Rebuild index</button>
+      <span class="muted small" id="vector-status"></span>
+    </div>
   </div>
 </section>
 

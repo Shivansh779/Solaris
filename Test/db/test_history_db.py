@@ -4,6 +4,7 @@ import pytest
 
 import history_db
 import main_db
+import vec_db
 
 
 @pytest.fixture
@@ -13,6 +14,9 @@ def db(tmp_path, monkeypatch):
     monkeypatch.setattr(history_db, "system_log", lambda *a, **k: None)
     monkeypatch.setattr(main_db, "DB_PATH", path)
     monkeypatch.setattr(main_db, "system_log", lambda *a, **k: None)
+    # The vector index lives in the same file, so it must be redirected too.
+    monkeypatch.setattr(vec_db, "DB_PATH", path)
+    monkeypatch.setattr(vec_db, "system_log", lambda *a, **k: None)
     return tmp_path / "t.db"
 
 
